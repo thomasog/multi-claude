@@ -19,8 +19,10 @@ to `%LOCALAPPDATA%\Claude-Data\<package>`. Claude finds that folder from `LOCALA
 profile started plainly would open the regular Claude's folder instead of its own (and, with the
 regular Claude open, just hand over to it). Claude skips the move when `LOCALAPPDATA` points to a
 share, so `open` starts the profile with the same folder written as `\\?\C:\...`, which Claude
-treats as one. One side effect: the profile drops Claude's "Open with" entry for files, which the
-regular Claude adds back the next time it starts. The watcher also checks which folder Claude's
+treats as one. Two side effects: everything the profile starts (Claude Code sessions, terminals, MCP
+servers) sees `LOCALAPPDATA` in that form, which PowerShell's `Join-Path` rejects; and the profile
+drops Claude's "Open with" entry for files, which the regular Claude adds back the next time it
+starts. The watcher also checks which folder Claude's
 helper processes really use, and leaves the windows on the regular Claude button if it is not the
 profile's own.
 

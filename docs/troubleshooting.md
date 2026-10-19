@@ -26,6 +26,11 @@ The terminal was started by a packaged app, where Windows redirects file writes,
 land where the Start menu can't see them. Open PowerShell from the Start menu and run the command
 there.
 
+**Windows: `Join-Path $env:LOCALAPPDATA ...` fails in a profile's terminal.**
+Profiles see `LOCALAPPDATA` as a `\\?\C:\...` path (see [How it works](how-it-works.md)), which
+PowerShell's `Join-Path` rejects. Use `"$env:LOCALAPPDATA\..."` or
+`[Environment]::GetFolderPath('LocalApplicationData')` instead. `multi-claude` itself handles it.
+
 **Windows: CS1069 mentioning `System.Drawing.Primitives` during installation.**
 Older installers referenced only the .NET Framework drawing assembly, which fails in PowerShell 7.
 Use an updated installer, or run the old installer in Windows PowerShell (`powershell.exe`). This

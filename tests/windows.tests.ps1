@@ -79,6 +79,10 @@ Test 'unknown option exits 64'      { Assert ((Invoke-Cli add Work --bogus) -eq 
 Test 'version works in any position' { Assert ((Invoke-Cli add -v) -eq 0) 'expected 0' }
 Test 'removing an unknown profile exits 1' { Assert ((Invoke-Cli remove NoSuchProfile) -eq 1) 'expected 1' }
 Test 'package detection answers'    { Assert ([MultiClaude.Package]::IsPackaged() -is [bool]) 'expected a boolean' }
+Test 'works with LOCALAPPDATA as \\?\ (a profile terminal)' {
+    $saved = $env:LOCALAPPDATA; $env:LOCALAPPDATA = "\\?\$saved"
+    try { Assert ((Invoke-Cli doctor) -eq 0) 'doctor failed' } finally { $env:LOCALAPPDATA = $saved }
+}
 
 if (Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue) {
     Write-Host 'live (Claude Desktop installed)'

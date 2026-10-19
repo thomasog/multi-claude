@@ -10,6 +10,9 @@ All notable changes are documented here. The format follows
 
 - Windows: compile the installer and CLI helpers with the correct .NET references in PowerShell 7,
   including .NET 10 drawing dependencies, while retaining Windows PowerShell 5.1 support.
+  Thanks @Yukk1No.
+- Windows: `multi-claude` works from a terminal inside a profile, where `LOCALAPPDATA` is a `\\?\`
+  path; the docs list that side effect for other scripts. Thanks @stavroskasidis for spotting it.
 
 ## [0.1.1] - 2026-10-19
 
