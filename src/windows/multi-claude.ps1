@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 # A profile's Claude runs with LOCALAPPDATA written as \\?\C:\... (see Invoke-Open) and hands it to
 # every terminal it opens. Join-Path rejects that form, so use the plain one.
 if ($env:LOCALAPPDATA -like '\\?\*') { $env:LOCALAPPDATA = $env:LOCALAPPDATA.Substring(4) }
-$Version = '0.1.1'
+$Version = '0.1.2'
 $Root    = Join-Path $env:USERPROFILE '.multi-claude'
 $Palette = [ordered]@{
     green = '1F6F43'; blue = '1F4E8C'; purple = '5B3A8E'; red = '9B2C2C'

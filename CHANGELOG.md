@@ -6,6 +6,8 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-19
+
 ### Fixed
 
 - Windows: compile the installer and CLI helpers with the correct .NET references in PowerShell 7,
@@ -45,6 +47,7 @@ All notable changes are documented here. The format follows
 - Installers that download a versioned release and verify it against the SHA-256 written into them,
   with build provenance attestations, and offer to add a profile with a color picker.
 
-[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/thomasog/multi-claude/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/thomasog/multi-claude/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thomasog/multi-claude/releases/tag/v0.1.0
