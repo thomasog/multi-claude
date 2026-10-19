@@ -97,8 +97,8 @@
             'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\app\multi-claude.ps1" %*'
         )
         # The user PATH is edited as stored, so entries like %USERPROFILE%\... stay variables.
-        try { Add-Type -Path (Join-Path $app 'MultiClaude.cs') -ReferencedAssemblies System.Drawing }
-        catch { return Show-Failure "Could not load multi-claude's Windows helpers (blocked by a security policy?): $($_.Exception.Message)" }
+        try { & (Join-Path $app 'Import-Interop.ps1') }
+        catch { return Show-Failure "Could not load multi-claude's Windows helpers: $($_.Exception.Message)" }
         $userPath = @([MultiClaude.UserPath]::Get())
         $present  = $userPath | Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') -eq $bin }
         if (-not $present) { [MultiClaude.UserPath]::Set([string[]]($userPath + $bin)) }

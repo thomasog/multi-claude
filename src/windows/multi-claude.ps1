@@ -71,8 +71,8 @@ function Import-Interop {
     if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
         Fail "PowerShell runs in $($ExecutionContext.SessionState.LanguageMode) mode here (usually a company policy), so multi-claude can't set icons or taskbar buttons."
     }
-    try { Add-Type -Path (Join-Path $PSScriptRoot 'MultiClaude.cs') -ReferencedAssemblies System.Drawing }
-    catch { Fail "Could not load multi-claude's Windows helpers (blocked by a security policy?): $($_.Exception.Message)" }
+    try { & (Join-Path $PSScriptRoot 'Import-Interop.ps1') }
+    catch { Fail "Could not load multi-claude's Windows helpers: $($_.Exception.Message)" }
 }
 
 # Inside an MSIX package context (e.g. a terminal opened from Claude Desktop) Windows redirects AppData

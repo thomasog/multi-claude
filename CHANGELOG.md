@@ -6,6 +6,11 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows: compile the installer and CLI helpers with the correct .NET references in PowerShell 7,
+  including .NET 10 drawing dependencies, while retaining Windows PowerShell 5.1 support.
+
 ## [0.1.1] - 2026-10-19
 
 ### Fixed

@@ -26,7 +26,12 @@ The terminal was started by a packaged app, where Windows redirects file writes,
 land where the Start menu can't see them. Open PowerShell from the Start menu and run the command
 there.
 
-**Windows: "PowerShell runs in ConstrainedLanguage mode" or "blocked by a security policy".**
+**Windows: CS1069 mentioning `System.Drawing.Primitives` during installation.**
+Older installers referenced only the .NET Framework drawing assembly, which fails in PowerShell 7.
+Use an updated installer, or run the old installer in Windows PowerShell (`powershell.exe`). This
+compiler error does not mean a security policy blocked the helper.
+
+**Windows: "PowerShell runs in ConstrainedLanguage mode".**
 Your organization restricts PowerShell (AppLocker, Device Guard or similar). multi-claude needs to
 load a small helper to set icons and taskbar IDs, so ask your IT team, or use the machine's regular
 Claude account only.

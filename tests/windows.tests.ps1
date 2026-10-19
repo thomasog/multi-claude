@@ -4,7 +4,7 @@
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $cli  = Join-Path $repo 'src\windows\multi-claude.ps1'
-Add-Type -Path (Join-Path $repo 'src\windows\MultiClaude.cs') -ReferencedAssemblies System.Drawing
+& (Join-Path $repo 'src\windows\Import-Interop.ps1')
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("mc-tests-" + [guid]::NewGuid()); New-Item -ItemType Directory $tmp | Out-Null
 $script:failed = 0
 
@@ -16,7 +16,7 @@ function Assert($cond, [string]$msg) { if (-not $cond) { throw $msg } }
 function Hue([Drawing.Color]$c) { $c.GetHue() }
 function Invoke-Cli {
     $ErrorActionPreference = 'Continue'   # the CLI writes errors to stderr on purpose
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $cli @args 2>$null | Out-Null
+    & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $cli @args 2>$null | Out-Null
     $LASTEXITCODE
 }
 
