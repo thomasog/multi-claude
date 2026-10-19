@@ -7,7 +7,7 @@
 # icon, recolored with Core Image. No artwork ships with this tool.
 set -euo pipefail
 
-VERSION=0.1.0
+VERSION=0.1.1
 HERE=${0:A:h}
 CLAUDE_APP=/Applications/Claude.app
 APPS=$HOME/Applications
@@ -33,7 +33,7 @@ launcher()    { print -- "$APPS/Claude $1.app"; }
 is_running()  { pgrep -f -- "--user-data-dir=$(data_dir "$1")( |\$)" >/dev/null; }
 check_name() {
   [[ $1 =~ '^[A-Za-z0-9-]{1,24}$' ]] || fail "Profile name: letters, digits and dashes, up to 24 characters (e.g. Work)." 64
-  [[ ${1:l} != 3p ]] || fail "The name '3p' is reserved: Claude uses that folder itself." 64
+  [[ ${1:l} != 3p && ${1:l} != data ]] || fail "The name '$1' is reserved: Claude uses that folder itself." 64
 }
 need_claude() { [[ -d $CLAUDE_APP ]] || fail "$NOT_FOUND"; }
 

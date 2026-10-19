@@ -8,7 +8,7 @@
 # the profile closes. If tagging ever fails, windows just show under the regular Claude button.
 
 $ErrorActionPreference = 'Stop'
-$Version = '0.1.0'
+$Version = '0.1.1'
 $Root    = Join-Path $env:USERPROFILE '.multi-claude'
 $Palette = [ordered]@{
     green = '1F6F43'; blue = '1F4E8C'; purple = '5B3A8E'; red = '9B2C2C'
@@ -55,7 +55,7 @@ for ($i = 0; $i -lt $args.Count; $i++) {
 # For a new profile, a name that differs from an existing one only by case is refused.
 function Assert-Name([switch]$New) {
     if ($Name -notmatch '^[A-Za-z0-9-]{1,24}$') { Fail 'Profile name: letters, digits and dashes, up to 24 characters (e.g. Work).' 64 }
-    if ($Name -eq '3p') { Fail "The name '3p' is reserved: Claude uses that folder itself." 64 }
+    if ($Name -in '3p', 'Data') { Fail "The name '$Name' is reserved: Claude uses that folder itself." 64 }
     $existing = Get-ProfileName | Where-Object { $_ -eq $Name }   # -eq ignores case
     if ($existing -and $New -and $existing -cne $Name) { Fail "A profile named '$existing' already exists; names are not case-sensitive." 64 }
     if ($existing) { $script:Name = $existing }
@@ -96,15 +96,19 @@ function Get-BrowserKey([string]$browser) { "HKCU:\Software\$($Browsers[$browser
 $ProfileHostPath = '\\Claude-([A-Za-z0-9-]+)\\ChromeNativeHost\\'
 
 # The regular Claude's own manifest, as Claude itself registers it: the Store app keeps it in its
-# package's redirected AppData, other installs in %APPDATA%. $null if it never paired with a browser.
+# package's redirected AppData (in Claude-NativeHost since 2.42304, Claude\ChromeNativeHost before),
+# other installs in %APPDATA%. $null if it never paired with a browser.
 function Get-MainChromeHost {
-    $relative = 'Claude\ChromeNativeHost\com.anthropic.claude_browser_extension.json'
-    $package  = Get-ClaudePackage
-    $candidates = @(
-        $(if ($package) { Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalCache\Roaming\$relative" })
-        (Join-Path $env:APPDATA $relative)
+    $file    = 'com.anthropic.claude_browser_extension.json'
+    $package = Get-ClaudePackage
+    $roaming = @(
+        $(if ($package) { Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalCache\Roaming" })
+        $env:APPDATA
     )
-    $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    $candidates = foreach ($dir in $roaming | Where-Object { $_ }) {
+        Join-Path $dir "Claude-NativeHost\$file"; Join-Path $dir "Claude\ChromeNativeHost\$file"
+    }
+    $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 }
 
 # The profile whose manifest a browser points at, if any ("Claude-3p" is Claude's own folder).
@@ -131,8 +135,17 @@ function Get-ChromePairing {
     if ($pairs) { $pairs -join ', ' } else { 'not set up' }
 }
 function Get-ProfileOf($process) {
-    if ($process.CommandLine -match '--user-data-dir="?[^"]*\\Claude-([A-Za-z0-9-]+)"?') { return $Matches[1] }
+    if ($process.CommandLine -match '--user-data-dir="?[^"]*\\Claude-([A-Za-z0-9-]+)(?:"|\s|$)') { return $Matches[1] }
     '(default)'
+}
+
+# The data folders that Claude's helpers, children of these main processes, really use. Claude can
+# override --user-data-dir at startup, and the helpers show what it chose.
+function Get-UsedDataDir([uint32[]]$parents) {
+    Get-CimInstance Win32_Process -Filter "Name='Claude.exe'" |
+        Where-Object { $parents -contains $_.ParentProcessId -and $_.CommandLine -match '--type=' } |
+        ForEach-Object { if ($_.CommandLine -match '--user-data-dir=(?:"([^"]+)"|(\S+))') { "$($Matches[1])$($Matches[2])".TrimEnd('\') } } |
+        Sort-Object -Unique
 }
 function Get-OpenArgument([string]$n) {
     $powershell = Join-Path $env:windir 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -219,7 +232,14 @@ function Invoke-Open {
     # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to Claude.
     Get-ChildItem Env: | Where-Object Name -Match '^(CLAUDE|ANTHROPIC)' | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" }
     if (-not (Test-Path (Get-LaunchAlias))) { Write-OpenLog $NotFound; Fail $NotFound }
-    Start-Process -FilePath (Get-LaunchAlias) -ArgumentList ('--user-data-dir="{0}"' -f (Get-DataDir $Name))
+    # Since 2.42304 the Store app moves its data out of the package, to %LOCALAPPDATA%\Claude-Data,
+    # and finds that folder from LOCALAPPDATA alone, whatever --user-data-dir says: a profile would end
+    # up in the regular Claude's folder and hand over to it. Claude skips the move when LOCALAPPDATA
+    # looks like a share, so the profile gets the same folder spelled \\?\C:\..., which counts as one.
+    $dataDir = Get-DataDir $Name; $alias = Get-LaunchAlias; $localAppData = $env:LOCALAPPDATA
+    if ($localAppData -match '^[A-Za-z]:\\') { $env:LOCALAPPDATA = "\\?\$localAppData" }
+    try { Start-Process -FilePath $alias -ArgumentList ('--user-data-dir="{0}"' -f $dataDir) }
+    finally { $env:LOCALAPPDATA = $localAppData }
     $mainHost = Get-MainChromeHost; $lastLookup = Get-Date
     Repair-ChromePairing $mainHost
 
@@ -228,15 +248,28 @@ function Invoke-Open {
     if (-not $isFirst) { return }   # this profile already has a watcher
     Import-Interop
     try {
-        $start = Get-Date; $pids = @(); $goneSince = $null
+        $start = Get-Date; $pids = @(); $goneSince = $null; $seen = $false; $checked = @(); $checkSince = $null
         while ($true) {
             $elapsed = ((Get-Date) - $start).TotalSeconds
             $pids = @($pids | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
             if (-not $pids) {
                 $pids = @(Get-ClaudeMainProcess | Where-Object { (Get-ProfileOf $_) -eq $Name } | ForEach-Object { [uint32]$_.ProcessId })
             }
+            # Before giving windows this profile's button, make sure Claude really runs on its folder.
+            $unchecked = @($pids | Where-Object { $checked -notcontains $_ })
+            if ($unchecked) {
+                $used = @(Get-UsedDataDir $unchecked)
+                if (-not $used) {
+                    if (-not $checkSince) { $checkSince = Get-Date }
+                    if (((Get-Date) - $checkSince).TotalSeconds -lt 20) { Start-Sleep -Milliseconds 300; continue }   # helpers not started yet
+                    Write-OpenLog "could not tell which data folder Claude uses"
+                }
+                $other = @($used | Where-Object { $_ -ne $dataDir })
+                if ($other) { Write-OpenLog "Claude opened $($other -join ', ') instead of $dataDir; its windows keep the regular Claude button"; break }
+                $checked += $unchecked; $checkSince = $null
+            }
             if ($pids) {
-                $goneSince = $null
+                $seen = $true; $goneSince = $null
                 # The regular Claude may pair with a browser only after this profile opened.
                 if (-not $mainHost -and ((Get-Date) - $lastLookup).TotalSeconds -gt 30) { $mainHost = Get-MainChromeHost; $lastLookup = Get-Date }
                 try { Repair-ChromePairing $mainHost } catch { Write-OpenLog "keeping Claude in Chrome paired failed: $($_.Exception.Message)" }
@@ -251,7 +284,10 @@ function Invoke-Open {
             } else {
                 if (-not $goneSince) { $goneSince = Get-Date }
                 $grace = if ($elapsed -lt 60) { 60 } else { 15 }   # a first launch builds the profile: be patient
-                if (((Get-Date) - $goneSince).TotalSeconds -gt $grace) { break }
+                if (((Get-Date) - $goneSince).TotalSeconds -gt $grace) {
+                    if (-not $seen) { Write-OpenLog 'Claude closed without opening this profile (it may have handed the launch to another Claude)' }
+                    break
+                }
             }
             Start-Sleep -Milliseconds $(if ($elapsed -lt 30) { 300 } else { 2000 })
         }
@@ -266,6 +302,10 @@ function Invoke-Doctor {
     Say "multi-claude $Version"
     Say ('Claude Desktop:   ' + $(if ($package) { $package.Version } else { 'not found - https://claude.ai/download' }))
     Say ('Launch alias:     ' + $(if (Test-Path (Get-LaunchAlias)) { 'ok' } else { 'missing' }))
+    if ($package) {
+        $moved = Join-Path $env:LOCALAPPDATA "Claude-Data\$($package.PackageFamilyName.ToLower())"
+        Say ('Regular data:     ' + $(if (Test-Path $moved) { $moved } else { 'inside the app package' }))
+    }
     Say ('PowerShell mode:  ' + $ExecutionContext.SessionState.LanguageMode)
     Say ('Browser pairing:  ' + (Get-ChromePairing))
     Import-Interop

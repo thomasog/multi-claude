@@ -6,6 +6,23 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-19
+
+### Fixed
+
+- Windows: profiles open again with Claude Desktop 2.42304 and later. That version moves the regular
+  Claude's data out of the app package and sent every profile to that folder, so a profile either
+  did not open (the regular Claude was running) or opened the regular account.
+- Windows: Claude in Chrome pairing repair finds the regular Claude's manifest in its new
+  `Claude-NativeHost` folder.
+
+### Changed
+
+- Windows: the watcher only gives windows a profile's taskbar button after checking that Claude
+  really runs on that profile's folder, and logs to `open.log` when a profile closes without opening.
+- `Data` is a reserved profile name on every system, like `3p`: Claude uses `Claude-Data` itself.
+- `doctor` on Windows shows where the regular Claude keeps its data.
+
 ## [0.1.0] - 2026-10-13
 
 ### Added
@@ -20,5 +37,6 @@ All notable changes are documented here. The format follows
 - Installers that download a versioned release and verify it against the SHA-256 written into them,
   with build provenance attestations, and offer to add a profile with a color picker.
 
-[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/thomasog/multi-claude/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thomasog/multi-claude/releases/tag/v0.1.0

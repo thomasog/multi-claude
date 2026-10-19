@@ -14,6 +14,16 @@ gives a second, fully separate instance with its own login. That is all a profil
 
 Nothing inside Claude changes, so app updates apply to every profile.
 
+On Windows, Claude Desktop 2.42304 and later move the regular Claude's data out of the app package,
+to `%LOCALAPPDATA%\Claude-Data\<package>`. Claude finds that folder from `LOCALAPPDATA` alone, so a
+profile started plainly would open the regular Claude's folder instead of its own (and, with the
+regular Claude open, just hand over to it). Claude skips the move when `LOCALAPPDATA` points to a
+share, so `open` starts the profile with the same folder written as `\\?\C:\...`, which Claude
+treats as one. One side effect: the profile drops Claude's "Open with" entry for files, which the
+regular Claude adds back the next time it starts. The watcher also checks which folder Claude's
+helper processes really use, and leaves the windows on the regular Claude button if it is not the
+profile's own.
+
 ## Colored icons
 
 `add` takes the Claude icon already installed on the computer and recolors it, so no artwork ships

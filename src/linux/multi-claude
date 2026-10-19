@@ -7,7 +7,7 @@
 # with this tool.
 set -euo pipefail
 
-VERSION=0.1.0
+VERSION=0.1.1
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}
 DATA=${XDG_DATA_HOME:-$HOME/.local/share}
@@ -35,7 +35,7 @@ entry_of()   { echo "$ENTRIES/$(app_id "$1").desktop"; }
 is_running() { command -v pgrep >/dev/null && pgrep -f -- "--user-data-dir=$(data_dir "$1")( |\$)" >/dev/null; }
 check_name() {
   [[ $1 =~ ^[A-Za-z0-9-]{1,24}$ ]] || fail "Profile name: letters, digits and dashes, up to 24 characters (e.g. Work)." 64
-  [[ ${1,,} != 3p ]] || fail "The name '3p' is reserved: Claude uses that folder itself." 64
+  [[ ${1,,} != 3p && ${1,,} != data ]] || fail "The name '$1' is reserved: Claude uses that folder itself." 64
 }
 entry_key()  { grep -m1 "^$2=" "$1" | cut -d= -f2-; }
 

@@ -64,6 +64,7 @@ Write-Host 'cli'
 Test 'help exits 0'                 { Assert ((Invoke-Cli help) -eq 0) 'help failed' }
 Test 'commands ignore case'         { Assert ((Invoke-Cli HELP) -eq 0) 'expected 0' }
 Test 'reserved name exits 64'       { Assert ((Invoke-Cli add 3p --preview $tmp) -eq 64) 'expected 64' }
+Test 'Claude-Data name is reserved' { Assert ((Invoke-Cli add data --preview $tmp) -eq 64) 'expected 64' }
 Test 'opening an unknown profile exits 1' { Assert ((Invoke-Cli open NoSuchProfile) -eq 1) 'expected 1' }
 Test 'user PATH is read without expanding variables' {
     $raw = (Get-Item 'HKCU:\Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames')
