@@ -15,6 +15,9 @@ jobs:
     strategy:
       matrix:
         shell: [powershell, pwsh]
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}   # steps can't use matrix in their own shell
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,13 +30,10 @@ jobs:
           $issues | Format-Table -AutoSize
           if ($issues) { exit 1 }
       - name: Test
-        shell: ${{ matrix.shell }}
         run: .\tests\windows.tests.ps1
       - name: Installer interop in a fresh process
-        shell: ${{ matrix.shell }}
         run: .\tests\windows-interop.tests.ps1 -EntryPoint Installer
       - name: CLI interop in a fresh process
-        shell: ${{ matrix.shell }}
         run: .\tests\windows-interop.tests.ps1 -EntryPoint Cli
 
   macos:
