@@ -63,7 +63,8 @@ if command -v iconutil >/dev/null && [[ -x /usr/libexec/PlistBuddy ]]; then
   }
   plist "$MULTI_CLAUDE_CLAUDE_APP" com.anthropic.claudefordesktop
   app="$HOME/Applications/Claude Work.app"
-  check 'add builds the launcher'             'exit_is 0 add Work --color blue && [[ -d $app ]]'
+  # On failure, show what add printed: this is the only place the whole macOS add path runs.
+  check 'add builds the launcher'             'out=$(zsh "$cli" add Work --color blue 2>&1) || { print -r -- "$out"; false; } && [[ -d $app ]]'
   check 'the launcher has our bundle ID'      '[[ $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Contents/Info.plist") == io.github.thomasog.multi-claude.Work ]]'
   check 'the launcher has the colored icon'   '[[ -s $app/Contents/Resources/applet.icns ]]'
   check 'list shows the profile'              'grep -q "^Work " <<<"$(zsh "$cli" list)"'

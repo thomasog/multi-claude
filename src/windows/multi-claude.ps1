@@ -124,7 +124,7 @@ function Sync-Junction([string]$from, [string]$to, [scriptblock]$skip) {
 }
 
 # Deletes a folder without following the junctions inside it (cmd's rd removes the links themselves).
-function Remove-Tree([string]$dir) {
+function Clear-Tree([string]$dir) {
     if (Test-Path -LiteralPath $dir) { & (Join-Path $env:windir 'System32\cmd.exe') /d /c ('rd /s /q "{0}"' -f $dir) }
 }
 
@@ -133,11 +133,11 @@ function Remove-Tree([string]$dir) {
 function Move-Folder([string]$from, [string]$to) {
     try { Move-Item -LiteralPath $from -Destination $to; return } catch { if (Test-Path -LiteralPath $to) { throw } }
     $partial = "$to.partial"
-    Remove-Tree $partial
+    Clear-Tree $partial
     & (Join-Path $env:windir 'System32\robocopy.exe') $from $partial /E /COPY:DAT /DCOPY:T /R:1 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
-    if ($LASTEXITCODE -ge 8) { Remove-Tree $partial; throw "robocopy could not copy $from (code $LASTEXITCODE)" }
+    if ($LASTEXITCODE -ge 8) { Clear-Tree $partial; throw "robocopy could not copy $from (code $LASTEXITCODE)" }
     Rename-Item -LiteralPath $partial -NewName (Split-Path $to -Leaf)
-    Remove-Tree $from
+    Clear-Tree $from
 }
 function Get-Shortcut([string]$n)   { Join-Path ([Environment]::GetFolderPath('Programs')) "Claude $n.lnk" }
 function Get-ClaudePackage {

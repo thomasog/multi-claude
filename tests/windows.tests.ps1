@@ -26,7 +26,7 @@ function Invoke-CliIn([string]$home2, [string]$local2) {
     try { Invoke-Cli @args } finally { $env:USERPROFILE, $env:MULTI_CLAUDE_LOCALAPPDATA = $saved }
 }
 # Deletes a folder without following junctions (Remove-Item -Recurse can follow them in 5.1).
-function Remove-TestTree([string]$dir) { if (Test-Path -LiteralPath $dir) { & cmd.exe /d /c ('rd /s /q "{0}"' -f $dir) } }
+function Clear-TestTree([string]$dir) { if (Test-Path -LiteralPath $dir) { & cmd.exe /d /c ('rd /s /q "{0}"' -f $dir) } }
 
 # Synthetic logo: orange square, white "glyph" in the middle, transparent corner.
 $logo = Join-Path $tmp 'logo.png'
@@ -165,7 +165,7 @@ Test 'LocalAppData view mirrors folders but not Claude''s' {
     foreach ($n in 'Claude', 'Claude-Data', 'Claude-3p', 'AnthropicClaude', 'Claude Nest', 'Legacy') { Assert ($names -notcontains $n) "$n should stay out" }
     Assert (Test-Path (Join-Path $view 'npm-cache\keep.txt')) 'junction does not resolve'
     Assert ((Sync-LocalView) -eq $view) 'a second sync failed'
-    Remove-Tree $view
+    Clear-Tree $view
     Assert (-not (Test-Path $view)) 'view not removed'
     Assert ((Get-Content (Join-Path $LocalAppData 'npm-cache\keep.txt')) -eq 'keep') 'removing the view touched a target'
 }
@@ -216,7 +216,7 @@ if (Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue) {
     }
 }
 
-Remove-TestTree $tmp
+Clear-TestTree $tmp
 if ($script:failed) { Write-Host "$script:failed test(s) failed" -ForegroundColor Red; exit 1 }
 Write-Host 'all tests passed' -ForegroundColor Green
 exit 0  # CI exits with $LASTEXITCODE, which the "exits 1" tests leave at 1
