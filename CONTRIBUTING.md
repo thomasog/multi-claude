@@ -3,11 +3,17 @@
 Thanks for helping. multi-claude stays small on purpose: plain scripts, no runtime dependencies, no
 admin rights, and the official Claude app is never modified.
 
+It does one thing: several Claude Desktop accounts side by side, each easy to tell apart, working
+reliably and safely. Fixes and anything that makes that better are welcome. Features Claude already
+has (usage, account switching) or that serve another purpose are out of scope, and multi-claude never
+reads sign-ins or contacts Anthropic. [AGENTS.md](AGENTS.md#scope) has the full rule.
+
 ## Layout
 
 ```
 install.ps1, install.sh   one-line installers (versioned download + SHA-256 check)
-src/windows/              multi-claude.ps1 (CLI) and MultiClaude.cs (taskbar, shortcut and icon interop)
+src/windows/              multi-claude.ps1 (CLI), MultiClaude.cs (taskbar, shortcut and icon interop)
+                          and Import-Interop.ps1 (compiles it on Windows PowerShell and PowerShell 7)
 src/macos/                multi-claude (zsh CLI) and recolor.js (Core Image)
 src/linux/                multi-claude (bash CLI) and recolor.py (standard-library PNG recolor)
 tests/                    one suite per system; none needs Claude installed
@@ -24,8 +30,9 @@ python3 -m unittest discover -s tests                              # any system 
 bash tests/linux.sh                                                # Linux
 ```
 
-CI runs all of them on every pull request, plus PSScriptAnalyzer, ShellCheck and Ruff, and installs
-from the checkout on macOS and Linux.
+CI runs all of them on every pull request (Windows under both Windows PowerShell and PowerShell 7),
+plus PSScriptAnalyzer, ShellCheck and Ruff, and installs from the checkout and uninstalls again on
+all three systems.
 
 ## Guidelines
 

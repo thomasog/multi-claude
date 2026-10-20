@@ -9,6 +9,22 @@ with its own `--user-data-dir`; icons are recolored from the installed logo; on 
 watcher tags the profile's windows with AppUserModelID `MultiClaude.<name>`. Read
 [docs/how-it-works.md](docs/how-it-works.md) before changing behavior.
 
+## Scope
+
+One job: several Claude Desktop accounts open side by side, each telling itself apart, working
+every time and putting nothing of the user at risk. Weigh every change against that.
+
+- **In scope:** what makes profiles open, stay apart and be told apart: launching, separate data,
+  icons and colors, the taskbar button, keeping Claude in Chrome on the regular Claude, install and
+  uninstall, and fixes when Claude changes.
+- **Out of scope:** what Claude already does itself or what serves another purpose: usage meters,
+  account switching, syncing chats or settings between profiles, tray apps, auto-updaters.
+- **Never:** read or copy sign-ins or tokens, call Anthropic's services, patch or copy the app, kill
+  Claude processes we didn't start, or touch the regular Claude's data.
+- **Priorities:** works correctly, then safe for the user, then stable, then fast. Prefer removing
+  code to adding it. Workarounds for one Claude version live in one marked block and go once that
+  version is gone.
+
 ## Commands
 
 ```sh
