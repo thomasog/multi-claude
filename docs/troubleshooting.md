@@ -21,6 +21,11 @@ and on in your regular Claude.
 **A keyboard shortcut opens a profile instead of the regular Claude.**
 Only one app can own a global shortcut. In the profile's settings, turn its shortcut off or change it.
 
+**Windows: "Claude Desktop was not found" although Claude is installed.**
+You probably have the older installer's Claude, in `%LOCALAPPDATA%\AnthropicClaude`. multi-claude
+works with the current app, which both the Microsoft Store and
+[claude.ai/download](https://claude.ai/download) install. Install it from there.
+
 **Windows: "this one runs inside an app package".**
 The terminal was started by a packaged app, where Windows redirects file writes, so shortcuts would
 land where the Start menu can't see them. Open PowerShell from the Start menu and run the command
