@@ -43,12 +43,17 @@ main() {
     src=$tmp/src/$os
   fi
 
-  # 2. The command.
+  # 2. The command. Each file is written aside, then moved into place, so a running multi-claude
+  #    (a background watcher) keeps reading its old file instead of a half-written one.
   mkdir -p "$lib" "$bin"
   for file in "$src"/*; do
-    if [ -f "$file" ]; then cp "$file" "$lib"/; fi
+    if [ -f "$file" ]; then
+      part=$lib/.$(basename "$file").part
+      cp "$file" "$part"
+      if [ "$(basename "$file")" = multi-claude ]; then chmod +x "$part"; fi
+      mv -f "$part" "$lib/$(basename "$file")"
+    fi
   done
-  chmod +x "$lib/multi-claude"
   ln -sf "$lib/multi-claude" "$bin/multi-claude"
   echo
   echo "  multi-claude is installed. Add a profile with: multi-claude add Work --color blue"

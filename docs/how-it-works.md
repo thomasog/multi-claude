@@ -24,14 +24,23 @@ starts while closed.
 On Windows, Claude Desktop 2.42304 and later move the regular Claude's data out of the app package,
 to `%LOCALAPPDATA%\Claude-Data\<package>`. Claude finds that folder from `LOCALAPPDATA` alone, so a
 profile started plainly would open the regular Claude's folder instead of its own (and, with the
-regular Claude open, just hand over to it). Claude skips the move when `LOCALAPPDATA` points to a
-share, so `open` starts the profile with the same folder written as `\\?\C:\...`, which Claude
-treats as one. Two side effects: everything the profile starts (Claude Code sessions, terminals, MCP
-servers) sees `LOCALAPPDATA` in that form, which PowerShell's `Join-Path` rejects; and the profile
-drops Claude's "Open with" entry for files, which the regular Claude adds back the next time it
-starts. The watcher also checks which folder Claude's
-helper processes really use, and leaves the windows on the regular Claude button if it is not the
-profile's own.
+regular Claude open, just hand over to it). Once that move has happened, `open` starts the profile
+with `LOCALAPPDATA` pointing at a view of the real folder, `%USERPROFILE%\.multi-claude\local`: one
+junction per folder of the real LocalAppData, except Claude's own (`Claude`, `Claude-*`, `Claude Nest`,
+`AnthropicClaude`) and, under `Packages`, Claude's package. Claude finds no `Claude-Data` there and
+keeps the profile's own folder, while everything the profile starts (MCP servers, Claude Code
+sessions, terminals) still finds its usual folders, such as the npm cache, through the junctions. A
+tool that creates a brand-new folder directly in LocalAppData while a profile runs creates it in the
+view. In the view's copy of Claude's package the profile keeps its own Claude in Chrome host; the
+watcher points the browsers back at the regular Claude, as for any profile, and puts Claude's "Open
+with" entry, which the profile writes with the alias it sees, back on the real one. `uninstall`
+removes the view's junctions, never what they point to.
+
+0.1.1 to 0.1.3 used a `\\?\C:\...` spelling of `LOCALAPPDATA` instead, which Claude treats as a share.
+npm can't work with that spelling, so MCP servers started through `npx` failed in profiles.
+
+The watcher also checks which folder Claude's helper processes really use, and leaves the windows on
+the regular Claude button if it is not the profile's own.
 
 ## Colored icons
 

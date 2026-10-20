@@ -23,18 +23,35 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint
-        shell: pwsh
         run: |
+          if ($PSVersionTable.PSVersion.Major -lt 6) { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null }
           Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Force -Scope CurrentUser
           $issues = 'install.ps1', 'src', 'tests' | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse -Settings ./PSScriptAnalyzerSettings.psd1 }
           $issues | Format-Table -AutoSize
-          if ($issues) { exit 1 }
+          # Windows PowerShell 5.1 reads BOM-less files as ANSI: keep every .ps1 ASCII.
+          $nonAscii = Get-ChildItem -Recurse -Filter *.ps1 | Where-Object { [IO.File]::ReadAllBytes($_.FullName) -gt 127 }
+          if ($nonAscii) { "Non-ASCII: $($nonAscii.FullName -join ', ')" }
+          if ($issues -or $nonAscii) { exit 1 }
       - name: Test
         run: .\tests\windows.tests.ps1
       - name: Installer interop in a fresh process
         run: .\tests\windows-interop.tests.ps1 -EntryPoint Installer
       - name: CLI interop in a fresh process
         run: .\tests\windows-interop.tests.ps1 -EntryPoint Cli
+      - name: Install from this checkout, then uninstall
+        run: |
+          $env:USERPROFILE = Join-Path $env:RUNNER_TEMP 'mc-home'
+          New-Item -ItemType Directory $env:USERPROFILE -Force | Out-Null
+          $shell = (Get-Process -Id $PID).Path
+          cmd /d /c "echo.| `"$shell`" -NoProfile -ExecutionPolicy Bypass -File install.ps1"
+          $mc = Join-Path $env:USERPROFILE '.multi-claude\bin\multi-claude.cmd'
+          $onPath = { [Environment]::GetEnvironmentVariable('Path', 'User') -split ';' | Where-Object { $_ -like '*mc-home*' } }
+          & $mc help; if ($LASTEXITCODE) { exit 1 }
+          if (-not (& $onPath)) { throw 'bin is not on the user PATH' }
+          & $mc uninstall; if ($LASTEXITCODE) { exit 1 }
+          Start-Sleep -Seconds 8
+          if (Test-Path (Join-Path $env:USERPROFILE '.multi-claude')) { throw '.multi-claude is still there' }
+          if (& $onPath) { throw 'bin is still on the user PATH' }
 
   macos:
     runs-on: macos-latest

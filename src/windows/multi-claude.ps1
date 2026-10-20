@@ -8,11 +8,14 @@
 # the profile closes. If tagging ever fails, windows just show under the regular Claude button.
 
 $ErrorActionPreference = 'Stop'
-# A profile's Claude runs with LOCALAPPDATA written as \\?\C:\... (see Invoke-Open) and hands it to
-# every terminal it opens. Join-Path rejects that form, so use the plain one.
-if ($env:LOCALAPPDATA -like '\\?\*') { $env:LOCALAPPDATA = $env:LOCALAPPDATA.Substring(4) }
-$Version = '0.1.3'
+$Version = '0.1.4'
 $Root    = Join-Path $env:USERPROFILE '.multi-claude'
+# The real LocalAppData folder. Profiles run with LOCALAPPDATA pointing at a view of it (see
+# Sync-LocalView), and so does every terminal they open, so the variable is never used here. Tests
+# point it elsewhere with MULTI_CLAUDE_LOCALAPPDATA.
+$LocalAppData = if ($env:MULTI_CLAUDE_LOCALAPPDATA) { $env:MULTI_CLAUDE_LOCALAPPDATA } else { [Environment]::GetFolderPath('LocalApplicationData') }
+$ReservedByClaude  = '3p', 'Data'   # Claude's own Claude-3p and Claude-Data folders
+$ReservedByWindows = @('CON', 'PRN', 'AUX', 'NUL') + (1..9 | ForEach-Object { "COM$_"; "LPT$_" })
 $Palette = [ordered]@{
     green = '1F6F43'; blue = '1F4E8C'; purple = '5B3A8E'; red = '9B2C2C'
     teal  = '146C6C'; pink = 'A0346B'; gray   = '4A4F57'
@@ -58,7 +61,8 @@ for ($i = 0; $i -lt $args.Count; $i++) {
 # For a new profile, a name that differs from an existing one only by case is refused.
 function Assert-Name([switch]$New) {
     if ($Name -notmatch '^[A-Za-z0-9-]{1,24}$') { Fail 'Profile name: letters, digits and dashes, up to 24 characters (e.g. Work).' 64 }
-    if ($Name -in '3p', 'Data') { Fail "The name '$Name' is reserved: Claude uses that folder itself." 64 }
+    if ($Name -in $ReservedByClaude) { Fail "The name '$Name' is reserved: Claude uses that folder itself." 64 }
+    if ($Name -in $ReservedByWindows) { Fail "The name '$Name' is reserved by Windows." 64 }
     $existing = Get-ProfileName | Where-Object { $_ -eq $Name }   # -eq ignores case
     if ($existing -and $New -and $existing -cne $Name) { Fail "A profile named '$existing' already exists; names are not case-sensitive." 64 }
     if ($existing) { $script:Name = $existing }
@@ -74,8 +78,8 @@ function Get-ProfileDir([string]$n) { Join-Path $Root "profiles\$n" }
 function Get-OldDataDir([string]$n) {
     $package = Get-ClaudePackage
     @(
-        $(if ($package) { Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalCache\Local\Claude-$n" })
-        (Join-Path $env:LOCALAPPDATA "Claude-$n")
+        $(if ($package) { Join-Path $LocalAppData "Packages\$($package.PackageFamilyName)\LocalCache\Local\Claude-$n" })
+        (Join-Path $LocalAppData "Claude-$n")
     ) | Where-Object { $_ -and (Test-Path (Join-Path $_ 'Local State')) } | Select-Object -First 1
 }
 
@@ -85,9 +89,62 @@ function Find-DataDir([string]$n) {
     if (-not (Test-Path $dir)) { $old = Get-OldDataDir $n; if ($old) { $dir = $old } }
     $dir
 }
+
+# Since 2.42304 the Store app moves the regular Claude's data to %LOCALAPPDATA%\Claude-Data\<family>
+# and, finding that folder from LOCALAPPDATA alone, would start any --user-data-dir instance on it.
+# A profile therefore runs with LOCALAPPDATA pointing at a view of the real folder: one junction per
+# folder, except Claude's own. Claude finds no Claude-Data there and keeps the profile's folder, and
+# everything the profile starts (MCP servers, terminals) still reaches its usual folders. Claude's own
+# folders stay out also because Claude refuses a private folder whose last part is a junction. So does
+# Claude's package folder under Packages: there a profile keeps its own Claude in Chrome host, instead
+# of rewriting the regular Claude's.
+function Test-ClaudeDataMoved {
+    $package = Get-ClaudePackage
+    $package -and (Test-Path -PathType Container (Join-Path $LocalAppData "Claude-Data\$($package.PackageFamilyName.ToLower())"))
+}
+function Sync-LocalView {
+    $view = Join-Path $Root 'local'
+    Sync-Junction $LocalAppData $view { param($d) $d.Name -ceq 'Claude' -or $d.Name -clike 'Claude-*' -or $d.Name -cin 'Claude Nest', 'AnthropicClaude', 'Packages' }
+    Sync-Junction (Join-Path $LocalAppData 'Packages') (Join-Path $view 'Packages') { param($d) $d.Name -like 'Claude_*' }
+    $view
+}
+# Makes $to a real folder holding a junction to each folder of $from, except those $skip names.
+function Sync-Junction([string]$from, [string]$to, [scriptblock]$skip) {
+    if ((Test-Path -LiteralPath $to) -and ((Get-Item -LiteralPath $to -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        & (Join-Path $env:windir 'System32\cmd.exe') /d /c ('rd "{0}"' -f $to)   # a link left by an older view: drop the link only
+    }
+    New-Item -ItemType Directory -Path $to -Force | Out-Null
+    foreach ($dir in Get-ChildItem -LiteralPath $from -Directory -Force -ErrorAction SilentlyContinue) {
+        if (($dir.Attributes -band [IO.FileAttributes]::ReparsePoint) -or (& $skip $dir)) { continue }   # legacy links like "Application Data"
+        $link = Join-Path $to $dir.Name
+        if (-not (Test-Path -LiteralPath $link)) {
+            New-Item -ItemType Junction -Path $link -Target $dir.FullName -ErrorAction SilentlyContinue | Out-Null   # another profile may be at it
+        }
+    }
+}
+
+# Deletes a folder without following the junctions inside it (cmd's rd removes the links themselves).
+function Remove-Tree([string]$dir) {
+    if (Test-Path -LiteralPath $dir) { & (Join-Path $env:windir 'System32\cmd.exe') /d /c ('rd /s /q "{0}"' -f $dir) }
+}
+
+# Moves a folder. Move-Item can't cross drives (the Store may keep apps on another one), so then copy,
+# swap the copy in, and delete the original only once the copy is complete.
+function Move-Folder([string]$from, [string]$to) {
+    try { Move-Item -LiteralPath $from -Destination $to; return } catch { if (Test-Path -LiteralPath $to) { throw } }
+    $partial = "$to.partial"
+    Remove-Tree $partial
+    & (Join-Path $env:windir 'System32\robocopy.exe') $from $partial /E /COPY:DAT /DCOPY:T /R:1 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { Remove-Tree $partial; throw "robocopy could not copy $from (code $LASTEXITCODE)" }
+    Rename-Item -LiteralPath $partial -NewName (Split-Path $to -Leaf)
+    Remove-Tree $from
+}
 function Get-Shortcut([string]$n)   { Join-Path ([Environment]::GetFolderPath('Programs')) "Claude $n.lnk" }
-function Get-ClaudePackage          { Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue | Select-Object -First 1 }
-function Get-LaunchAlias            { Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\claude-desktop.exe' }
+function Get-ClaudePackage {
+    if (-not $script:ClaudePackage) { $script:ClaudePackage = Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue | Select-Object -First 1 }
+    $script:ClaudePackage
+}
+function Get-LaunchAlias            { Join-Path $LocalAppData 'Microsoft\WindowsApps\claude-desktop.exe' }
 function Get-ProfileName           { @(Get-ChildItem (Join-Path $Root 'profiles') -Directory -ErrorAction SilentlyContinue | ForEach-Object Name) }
 
 function Import-Interop {
@@ -125,7 +182,7 @@ function Get-MainChromeHost {
     $file    = 'com.anthropic.claude_browser_extension.json'
     $package = Get-ClaudePackage
     $roaming = @(
-        $(if ($package) { Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalCache\Roaming" })
+        $(if ($package) { Join-Path $LocalAppData "Packages\$($package.PackageFamilyName)\LocalCache\Roaming" })
         $env:APPDATA
     )
     $candidates = foreach ($dir in $roaming | Where-Object { $_ }) {
@@ -134,10 +191,16 @@ function Get-MainChromeHost {
     $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 }
 
-# The profile whose manifest a browser points at, if any ("Claude-3p" is Claude's own folder).
+# The profile whose manifest a browser points at, if any: a profile's data folder (Claude-3p and
+# Claude-Data are Claude's own), or anything else under multi-claude's folder, such as the LocalAppData
+# view a profile sees ("?": which profile is unknown).
 function Get-PairingHolder([string]$browser) {
     $key = Get-BrowserKey $browser
-    if ((Test-Path $key) -and ((Get-Item $key).GetValue('') -match $ProfileHostPath) -and $Matches[1] -ne '3p') { $Matches[1] }
+    if (Test-Path $key) { Get-ManifestHolder ([string](Get-Item $key).GetValue('')) }
+}
+function Get-ManifestHolder([string]$manifest) {
+    if ($manifest -match $ProfileHostPath -and $Matches[1] -notin $ReservedByClaude) { return $Matches[1] }
+    if ($manifest.StartsWith("$Root\", [StringComparison]::OrdinalIgnoreCase)) { '?' }
 }
 
 # Points every browser a profile has taken back at the regular Claude.
@@ -148,12 +211,23 @@ function Repair-ChromePairing([string]$mainHost) {
     }
 }
 
+# Claude's "Open with" entry for files, which each Claude writes with the launch alias it sees. A
+# profile sees the alias through the LocalAppData view, so point the entry back at the real alias.
+function Repair-OpenWith([string]$key = 'HKCU:\Software\Classes\Applications\claude-desktop.exe\shell\open\command') {
+    if (-not (Test-Path $key)) { return }
+    $command = [string](Get-Item $key).GetValue('')
+    $view    = Join-Path $Root 'local'
+    if ($command.IndexOf("$view\", [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        Set-Item -Path $key -Value ($command -ireplace [regex]::Escape($view), $LocalAppData.Replace('$', '$$'))
+    }
+}
+
 # "Chrome: regular Claude, Edge: profile Work" for each browser that has the pairing.
 function Get-ChromePairing {
     $pairs = foreach ($browser in $Browsers.Keys) {
         if (-not (Test-Path (Get-BrowserKey $browser))) { continue }
         $holder = Get-PairingHolder $browser
-        if ($holder) { "${browser}: profile $holder" } else { "${browser}: regular Claude" }
+        if ($holder -eq '?') { "${browser}: a profile" } elseif ($holder) { "${browser}: profile $holder" } else { "${browser}: regular Claude" }
     }
     if ($pairs) { $pairs -join ', ' } else { 'not set up' }
 }
@@ -167,8 +241,11 @@ function Get-ProfileOf($process) {
 function Get-UsedDataDir([uint32[]]$parents) {
     Get-CimInstance Win32_Process -Filter "Name='Claude.exe'" |
         Where-Object { $parents -contains $_.ParentProcessId -and $_.CommandLine -match '--type=' } |
-        ForEach-Object { if ($_.CommandLine -match '--user-data-dir=(?:"([^"]+)"|(\S+))') { "$($Matches[1])$($Matches[2])".TrimEnd('\') } } |
-        Sort-Object -Unique
+        ForEach-Object { Get-DataDirArgument $_.CommandLine } | Sort-Object -Unique
+}
+# The --user-data-dir value of a command line, quoted or not.
+function Get-DataDirArgument([string]$commandLine) {
+    if ($commandLine -match '--user-data-dir=(?:"([^"]+)"|(\S+))') { "$($Matches[1])$($Matches[2])".TrimEnd('\') }
 }
 function Get-OpenArgument([string]$n) {
     $powershell = Join-Path $env:windir 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -222,7 +299,9 @@ function Invoke-List {
     if (-not $profiles) { Say 'No profiles yet. Add one with: multi-claude add <name>'; return }
     $running = @(Get-ClaudeMainProcess | ForEach-Object { Get-ProfileOf $_ })
     foreach ($p in $profiles) {
-        Say ('{0,-16} {1,-8} {2}' -f $p, $(if ($running -contains $p) { 'running' } else { '' }), (Find-DataDir $p))
+        $dir = Find-DataDir $p
+        $note = if ($dir -ne (Get-DataDir $p)) { '  (moves out of AppData the next time it opens)' }
+        Say ('{0,-16} {1,-8} {2}{3}' -f $p, $(if ($running -contains $p) { 'running' } else { '' }), $dir, $note)
     }
 }
 
@@ -257,44 +336,55 @@ function Invoke-Open {
 
     # A profile made before 0.1.3 keeps its data under AppData: move it out while the profile is closed.
     # If it is open on its old folder, start Claude with that folder again, so Claude just focuses it.
-    $dataDir = Get-DataDir $Name; $old = Get-OldDataDir $Name
-    if ($old -and -not (Test-Path $dataDir)) {
-        if (Get-ClaudeMainProcess | Where-Object { (Get-ProfileOf $_) -eq $Name }) { $dataDir = Join-Path $env:LOCALAPPDATA "Claude-$Name" }
-        else {
-            try {
-                New-Item -ItemType Directory -Path (Split-Path $dataDir) -Force | Out-Null
-                Move-Item -LiteralPath $old -Destination $dataDir
-                Write-OpenLog "moved the profile's data from $old to $dataDir"
-            } catch {
-                Write-OpenLog "could not move the profile's data from ${old}: $($_.Exception.Message)"
-                $dataDir = Join-Path $env:LOCALAPPDATA "Claude-$Name"
+    # One `open` at a time does this, so a double click can't start a second, empty profile.
+    $dataDir = Get-DataDir $Name; $legacy = Join-Path $LocalAppData "Claude-$Name"
+    $moveLock = New-Object System.Threading.Mutex($false, "Local\MultiClaude-Move-$Name"); $owned = $false
+    try { $owned = $moveLock.WaitOne(120000) } catch [System.Threading.AbandonedMutexException] { $owned = $true }
+    try {
+        $old = Get-OldDataDir $Name
+        if ($old -and -not (Test-Path $dataDir)) {
+            if (Get-ClaudeMainProcess | Where-Object { (Get-ProfileOf $_) -eq $Name }) { $dataDir = $legacy }
+            else {
+                try {
+                    New-Item -ItemType Directory -Path (Split-Path $dataDir) -Force | Out-Null
+                    Move-Folder $old $dataDir
+                    Write-OpenLog "moved the profile's data from $old to $dataDir"
+                } catch {
+                    Write-OpenLog "could not move the profile's data from ${old}: $($_.Exception.Message)"
+                    if (-not (Test-Path (Join-Path $dataDir 'Local State'))) { $dataDir = $legacy }
+                }
             }
         }
-    }
+    } finally { if ($owned) { $moveLock.ReleaseMutex() }; $moveLock.Dispose() }
 
     if (-not (Test-Path (Get-LaunchAlias))) { Write-OpenLog $NotFound; Fail $NotFound }
-    # Since 2.42304 the Store app moves its data out of the package, to %LOCALAPPDATA%\Claude-Data,
-    # and finds that folder from LOCALAPPDATA alone, whatever --user-data-dir says: a profile would end
-    # up in the regular Claude's folder and hand over to it. Claude skips the move when LOCALAPPDATA
-    # looks like a share, so the profile gets the same folder spelled \\?\C:\..., which counts as one.
-    $alias = Get-LaunchAlias; $localAppData = $env:LOCALAPPDATA
-    if ($localAppData -match '^[A-Za-z]:\\') { $env:LOCALAPPDATA = "\\?\$localAppData" }
+    $alias = Get-LaunchAlias; $inherited = $env:LOCALAPPDATA
+    $env:LOCALAPPDATA = if (Test-ClaudeDataMoved) { Sync-LocalView } else { $LocalAppData }
     try { Start-Process -FilePath $alias -ArgumentList ('--user-data-dir="{0}"' -f $dataDir) }
-    finally { $env:LOCALAPPDATA = $localAppData }
+    finally { $env:LOCALAPPDATA = $inherited }
     $mainHost = Get-MainChromeHost; $lastLookup = Get-Date
-    Repair-ChromePairing $mainHost
+    function Repair-Pairing {
+        try { Repair-ChromePairing $mainHost } catch { Write-OpenLog "keeping Claude in Chrome paired failed: $($_.Exception.Message)" }
+        try { Repair-OpenWith } catch { Write-OpenLog "repairing the Open with entry failed: $($_.Exception.Message)" }
+    }
+    Repair-Pairing
 
     $isFirst = $false
     $mutex = New-Object System.Threading.Mutex($true, "Local\MultiClaude-$Name", [ref]$isFirst)
     if (-not $isFirst) { return }   # this profile already has a watcher
     Import-Interop
     try {
-        $start = Get-Date; $pids = @(); $goneSince = $null; $seen = $false; $checked = @(); $checkSince = $null
+        $start = Get-Date; $pids = @(); $started = @{}; $goneSince = $null; $seen = $false; $checked = @(); $checkSince = $null
         while ($true) {
             $elapsed = ((Get-Date) - $start).TotalSeconds
-            $pids = @($pids | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+            # Windows reuses process IDs: one still counts only if it is the same Claude process.
+            $pids = @($pids | Where-Object {
+                $p = Get-Process -Id $_ -ErrorAction SilentlyContinue
+                $p -and $p.ProcessName -eq 'Claude' -and $p.StartTime -eq $started[$_]
+            })
             if (-not $pids) {
                 $pids = @(Get-ClaudeMainProcess | Where-Object { (Get-ProfileOf $_) -eq $Name } | ForEach-Object { [uint32]$_.ProcessId })
+                foreach ($procId in $pids) { $started[$procId] = (Get-Process -Id $procId -ErrorAction SilentlyContinue).StartTime }
             }
             # Before giving windows this profile's button, make sure Claude really runs on its folder.
             $unchecked = @($pids | Where-Object { $checked -notcontains $_ })
@@ -313,7 +403,7 @@ function Invoke-Open {
                 $seen = $true; $goneSince = $null
                 # The regular Claude may pair with a browser only after this profile opened.
                 if (-not $mainHost -and ((Get-Date) - $lastLookup).TotalSeconds -gt 30) { $mainHost = Get-MainChromeHost; $lastLookup = Get-Date }
-                try { Repair-ChromePairing $mainHost } catch { Write-OpenLog "keeping Claude in Chrome paired failed: $($_.Exception.Message)" }
+                Repair-Pairing
                 foreach ($hwnd in [MultiClaude.Window]::Of([uint32[]]$pids)) {
                     try {
                         if ([MultiClaude.Window]::GetId($hwnd) -ne $id) {
@@ -333,7 +423,7 @@ function Invoke-Open {
             Start-Sleep -Milliseconds $(if ($elapsed -lt 30) { 300 } else { 2000 })
         }
     } finally {
-        Repair-ChromePairing $mainHost
+        Repair-Pairing
         $mutex.ReleaseMutex(); $mutex.Dispose()
     }
 }
@@ -344,8 +434,10 @@ function Invoke-Doctor {
     Say ('Claude Desktop:   ' + $(if ($package) { $package.Version } else { 'not found - https://claude.ai/download' }))
     Say ('Launch alias:     ' + $(if (Test-Path (Get-LaunchAlias)) { 'ok' } else { 'missing' }))
     if ($package) {
-        $moved = Join-Path $env:LOCALAPPDATA "Claude-Data\$($package.PackageFamilyName.ToLower())"
-        Say ('Regular data:     ' + $(if (Test-Path $moved) { $moved } else { 'inside the app package' }))
+        $moved = Test-ClaudeDataMoved
+        Say ('Regular data:     ' + $(if ($moved) { Join-Path $LocalAppData "Claude-Data\$($package.PackageFamilyName.ToLower())" } else { 'inside the app package' }))
+        $view = Join-Path $Root 'local'
+        Say ('Profiles see:     ' + $(if ($moved) { "LocalAppData view $view ($(@(Get-ChildItem -LiteralPath $view -Force -ErrorAction SilentlyContinue).Count) folders)" } else { 'the real LocalAppData' }))
     }
     Say ('PowerShell mode:  ' + $ExecutionContext.SessionState.LanguageMode)
     Say ('Browser pairing:  ' + (Get-ChromePairing))
@@ -387,6 +479,7 @@ function Invoke-Uninstall {
     Assert-NotPackaged
     foreach ($p in Get-ProfileName) { $s = Get-Shortcut $p; if (Test-Path $s) { Remove-Item -LiteralPath $s -Force } }
     Repair-ChromePairing (Get-MainChromeHost)
+    Repair-OpenWith   # before the view it may point through goes
     $bin  = Join-Path $Root 'bin'
     $path = [MultiClaude.UserPath]::Get()
     $kept = @($path | Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') -ne $bin })
@@ -394,12 +487,13 @@ function Invoke-Uninstall {
     $kept = @((Join-Path $Root 'data'), @(Get-ProfileName | ForEach-Object { Get-OldDataDir $_ })) |
         ForEach-Object { $_ } | Where-Object { $_ -and (Test-Path $_) }
     # The multi-claude.cmd running this command lives in $Root, and cmd.exe fails if its batch file
-    # vanishes mid-run: delete the folders a moment after we exit. The data folder, with the sign-ins,
-    # stays, and $Root goes only if nothing else is left in it.
+    # vanishes mid-run: delete the folders a moment after we exit. rd removes the view's junctions
+    # without following them. The data folder, with the sign-ins, stays, and $Root goes only if nothing
+    # else is left in it.
     if (Test-Path $Root) {
         $cmd   = Join-Path $env:windir 'System32\cmd.exe'
-        $clean = ('app', 'bin', 'profiles' | ForEach-Object { "rmdir /s /q `"$(Join-Path $Root $_)`" 2>nul" }) -join ' & '
-        Start-Process $cmd -WindowStyle Hidden -ArgumentList "/d /c ping -n 3 127.0.0.1 >nul & $clean & rmdir `"$Root`" 2>nul"
+        $clean = ('app', 'bin', 'profiles', 'local' | ForEach-Object { "rd /s /q `"$(Join-Path $Root $_)`" 2>nul" }) -join ' & '
+        Start-Process $cmd -WindowStyle Hidden -ArgumentList "/d /c ping -n 3 127.0.0.1 >nul & $clean & rd `"$Root`" 2>nul"
     }
     Say 'multi-claude removed. Unpin any profile buttons from the taskbar.'
     if ($kept) { Say "Sign-in data is kept in $($kept -join ', ') - delete those folders to sign out for good." }

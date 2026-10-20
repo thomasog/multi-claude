@@ -5,7 +5,7 @@
 
 Every colored pixel takes the target hue; saturation and brightness are scaled so the logo's own
 brand color lands exactly on the target, while near-white pixels (the glyph) stay light. Same
-algorithm as src/windows/MultiClaude.cs. Reads 8-bit RGB/RGBA non-interlaced PNGs.
+algorithm as src/windows/MultiClaude.cs. Reads non-interlaced 8-bit RGB/RGBA PNGs and palette PNGs.
 """
 
 import colorsys
@@ -31,28 +31,36 @@ def read_png(path):
     if not data.startswith(PNG_SIGNATURE):
         sys.exit(f"{path}: not a PNG file")
 
-    pos, compressed = len(PNG_SIGNATURE), b""
+    pos, compressed, palette, alpha = len(PNG_SIGNATURE), b"", [], b""
     while pos < len(data):
         length, kind = struct.unpack(">I4s", data[pos:pos + 8])
         body = data[pos + 8:pos + 8 + length]
         pos += 12 + length
         if kind == b"IHDR":
             width, height, depth, color_type, _, _, interlace = struct.unpack(">IIBBBBB", body)
-            if depth != 8 or color_type not in (2, 6) or interlace:
-                sys.exit(f"{path}: need an 8-bit RGB or RGBA, non-interlaced PNG")
-            channels = 4 if color_type == 6 else 3
+            supported = depth == 8 if color_type in (2, 6) else color_type == 3 and depth in (1, 2, 4, 8)
+            if not supported or interlace:
+                sys.exit(f"{path}: need a non-interlaced 8-bit RGB or RGBA PNG, or a palette PNG")
+            channels = {2: 3, 3: 1, 6: 4}[color_type]
+        elif kind == b"PLTE":
+            palette = [tuple(body[i:i + 3]) for i in range(0, len(body) - 2, 3)]
+        elif kind == b"tRNS":
+            alpha = body
         elif kind == b"IDAT":
             compressed += body
+    if color_type == 3 and not palette:
+        sys.exit(f"{path}: palette PNG without a palette")
 
-    raw, stride = zlib.decompress(compressed), width * channels
+    # Filters work on bytes; bpp is the byte distance to the previous pixel (at least 1).
+    raw, bpp, stride = zlib.decompress(compressed), max(1, channels * depth // 8), (width * channels * depth + 7) // 8
     rows, previous = [], bytearray(stride)
     for y in range(height):
         start = y * (stride + 1)
         kind, line = raw[start], bytearray(raw[start + 1:start + 1 + stride])
         for i in range(stride):
-            left = line[i - channels] if i >= channels else 0
+            left = line[i - bpp] if i >= bpp else 0
             up = previous[i]
-            up_left = previous[i - channels] if i >= channels else 0
+            up_left = previous[i - bpp] if i >= bpp else 0
             if kind == 1:
                 line[i] = (line[i] + left) & 255
             elif kind == 2:
@@ -61,8 +69,13 @@ def read_png(path):
                 line[i] = (line[i] + (left + up) // 2) & 255
             elif kind == 4:
                 line[i] = (line[i] + _paeth(left, up, up_left)) & 255
-        opaque = (255,) if channels == 3 else ()
-        rows.append([tuple(line[x:x + channels]) + opaque for x in range(0, stride, channels)])
+        if color_type == 3:
+            per_byte, mask = 8 // depth, (1 << depth) - 1
+            indexes = [line[x // per_byte] >> (8 - depth * (x % per_byte + 1)) & mask for x in range(width)]
+            rows.append([palette[i] + (alpha[i] if i < len(alpha) else 255,) for i in indexes])
+        else:
+            opaque = (255,) if channels == 3 else ()
+            rows.append([tuple(line[x:x + channels]) + opaque for x in range(0, stride, channels)])
         previous = line
     return width, height, rows
 

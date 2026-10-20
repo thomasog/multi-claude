@@ -70,12 +70,15 @@
 
     $tmp = $null
     try {
-        # 1. The files: this checkout, or the pinned release archive checked against its SHA-256.
+        # 1. The files: a release installer always takes its pinned archive, checked against its SHA-256;
+        # only the unstamped installer of a clone takes the files next to it.
         $checkout = if ($PSCommandPath) { Join-Path (Split-Path $PSCommandPath) 'src\windows' }
-        if ($checkout -and (Test-Path (Join-Path $checkout 'multi-claude.ps1'))) {
+        if ($version.StartsWith('__')) {
+            if (-not ($checkout -and (Test-Path (Join-Path $checkout 'multi-claude.ps1')))) {
+                return Show-Failure 'This installer is not from a release. Run it from a clone, or use the release URL.'
+            }
             $src = $checkout
         } else {
-            if ($version.StartsWith('__')) { return Show-Failure 'This installer is not from a release. Run it from a clone, or use the release URL.' }
             $tmp = Join-Path ([IO.Path]::GetTempPath()) ('multi-claude-' + [guid]::NewGuid())
             New-Item -ItemType Directory -Path $tmp | Out-Null
             $zip = Join-Path $tmp 'multi-claude.zip'

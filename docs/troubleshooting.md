@@ -32,10 +32,14 @@ which Explorer can't see. Update multi-claude, quit the profile (also from the t
 its shortcut: its data moves to `%USERPROFILE%\.multi-claude\data\Claude-<name>`, and the button works.
 `%USERPROFILE%\.multi-claude\profiles\<name>\open.log` says whether the move happened.
 
-**Windows: `Join-Path $env:LOCALAPPDATA ...` fails in a profile's terminal.**
-Profiles see `LOCALAPPDATA` as a `\\?\C:\...` path (see [How it works](how-it-works.md)), which
-PowerShell's `Join-Path` rejects. Use `"$env:LOCALAPPDATA\..."` or
-`[Environment]::GetFolderPath('LocalApplicationData')` instead. `multi-claude` itself handles it.
+**Windows: MCP servers don't connect in a profile (npx shows `\\?\C:\...` or "Maximum call stack size exceeded").**
+multi-claude 0.1.1 to 0.1.3 started profiles with `LOCALAPPDATA` written as `\\?\C:\...`, which npm
+can't handle. Update multi-claude, quit the profile (also from the tray) and open it from its
+shortcut. `multi-claude doctor` shows `Profiles see: LocalAppData view ...`.
+
+**Windows: in a profile, `LOCALAPPDATA` is `%USERPROFILE%\.multi-claude\local`.**
+That is the view described in [How it works](how-it-works.md): the same folders, reached through
+junctions. To get the real folder in a script, use `[Environment]::GetFolderPath('LocalApplicationData')`.
 
 **Windows: CS1069 mentioning `System.Drawing.Primitives` during installation.**
 Older installers referenced only the .NET Framework drawing assembly, which fails in PowerShell 7.

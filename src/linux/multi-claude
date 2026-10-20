@@ -7,7 +7,7 @@
 # with this tool.
 set -euo pipefail
 
-VERSION=0.1.3
+VERSION=0.1.4
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}
 DATA=${XDG_DATA_HOME:-$HOME/.local/share}
@@ -23,7 +23,7 @@ USAGE="multi-claude $VERSION - several Claude Desktop accounts side by side (Lin
   multi-claude list                           installed profiles
   multi-claude open <name>                    open a profile
   multi-claude remove <name>                  remove a profile (its sign-in data is kept)
-  multi-claude doctor                         check this machine
+  multi-claude doctor [--selftest]            check this machine
   multi-claude uninstall                      remove multi-claude and every profile launcher
 
 Colors: $COLORS or a hex value like C0392B"
@@ -36,6 +36,7 @@ is_running() { command -v pgrep >/dev/null && pgrep -f -- "--user-data-dir=$(dat
 check_name() {
   [[ $1 =~ ^[A-Za-z0-9-]{1,24}$ ]] || fail "Profile name: letters, digits and dashes, up to 24 characters (e.g. Work)." 64
   [[ ${1,,} != 3p && ${1,,} != data ]] || fail "The name '$1' is reserved: Claude uses that folder itself." 64
+  case ${1^^} in CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]) fail "The name '$1' is reserved by Windows." 64 ;; esac
 }
 entry_key()  { grep -m1 "^$2=" "$1" | cut -d= -f2-; }
 
@@ -47,8 +48,8 @@ manifest_of() { echo "$CONFIG/${1#*:}/NativeMessagingHosts/com.anthropic.claude_
 host_path()   { sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -n1; }
 main_path()   { sed -E "s#$PROFILE_HOST#/Claude/ChromeNativeHost/#g"; }
 
-# The profile holding a host path, if any ("Claude-3p" is Claude's own folder, not a profile).
-held_by() { [[ $1 =~ $PROFILE_HOST && ${BASH_REMATCH[1],,} != 3p ]] && echo "${BASH_REMATCH[1]}"; }
+# The profile holding a host path, if any ("Claude-3p" and "Claude-Data" are Claude's own folders).
+held_by() { [[ $1 =~ $PROFILE_HOST && ${BASH_REMATCH[1],,} != 3p && ${BASH_REMATCH[1],,} != data ]] && echo "${BASH_REMATCH[1]}"; }
 
 repair_pairing() {
   local browser manifest main tmp
@@ -112,11 +113,20 @@ canonical() {
   if [[ -f $(entry_of "$1") ]]; then name=$(entry_key "$(entry_of "$1")" Name); echo "${name#Claude }"; else echo "$1"; fi
 }
 
+# Where desktop entries and icons live: the user's folder, then the system ones (Flatpak and Snap
+# add their exports to XDG_DATA_DIRS).
+data_dirs() {
+  local dir; local -a dirs
+  IFS=: read -ra dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for dir in "$DATA" "${dirs[@]}"; do [[ -z $dir ]] || echo "$dir"; done
+}
+
 # The official desktop entry says how Claude is launched and which icon it uses.
 claude_entry() {
-  local dir file
-  for dir in "$ENTRIES" /usr/local/share/applications /usr/share/applications; do
-    for file in "$dir"/*.desktop; do
+  local dir file; local -a dirs
+  mapfile -t dirs < <(data_dirs)
+  for dir in "${dirs[@]}"; do
+    for file in "$dir"/applications/*.desktop; do
       [[ -f $file && $(basename "$file") != multi-claude-* ]] || continue
       if grep -qE '^Name=Claude( Desktop)?$' "$file"; then echo "$file"; return 0; fi
     done
@@ -127,12 +137,13 @@ claude_entry() {
 claude_launch() { entry_key "$1" Exec | sed -E 's/ ?%[fFuUdDnNickvm]//g'; }   # drop field codes
 
 claude_icon() {
-  local icon size base
+  local icon size dir; local -a dirs
   icon=$(entry_key "$1" Icon)
   if [[ $icon == /* && -f $icon ]]; then echo "$icon"; return 0; fi
+  mapfile -t dirs < <(data_dirs)
   for size in 512x512 256x256 128x128; do
-    for base in "$DATA/icons" /usr/local/share/icons /usr/share/icons; do
-      if [[ -f $base/hicolor/$size/apps/$icon.png ]]; then echo "$base/hicolor/$size/apps/$icon.png"; return 0; fi
+    for dir in "${dirs[@]}"; do
+      if [[ -f $dir/icons/hicolor/$size/apps/$icon.png ]]; then echo "$dir/icons/hicolor/$size/apps/$icon.png"; return 0; fi
     done
   done
   if [[ -f /usr/share/pixmaps/$icon.png ]]; then echo "/usr/share/pixmaps/$icon.png"; return 0; fi
@@ -140,9 +151,10 @@ claude_icon() {
 }
 
 cmd_add() {
-  local name=$1 color=$2 hex entry icon dir existing
+  local name=$1 color=$2 hex entry icon dir existing colored
   check_name "$name"
-  hex=${PALETTE[${color,,}]:-${color#\#}}
+  hex=${color#\#}
+  [[ -z $color ]] || hex=${PALETTE[${color,,}]:-$hex}   # an empty key is a bash error
   [[ $hex =~ ^[0-9A-Fa-f]{6}$ ]] || fail "Unknown color '$color'. Use $COLORS or a hex value like C0392B." 64
   if [[ -f $(entry_of "$name") ]]; then
     existing=$(entry_key "$(entry_of "$name")" Name); existing=${existing#Claude }
@@ -152,9 +164,13 @@ cmd_add() {
   icon=$(claude_icon "$entry") || fail "Could not find Claude's icon ($(entry_key "$entry" Icon))."
   command -v python3 >/dev/null || fail "python3 is required to color the icon."
 
+  # The profile folder appears only once the icon is colored, so a failure leaves nothing behind.
   dir=$PROFILES/$name
-  mkdir -p "$dir" "$ENTRIES"
-  python3 "$HERE/recolor.py" "$icon" "$dir/icon.png" "$hex"
+  mkdir -p "$PROFILES" "$ENTRIES"
+  colored=$(mktemp "$PROFILES/.icon.XXXXXX")
+  python3 "$HERE/recolor.py" "$icon" "$colored" "$hex" || { rm -f "$colored"; exit 1; }
+  chmod 644 "$colored"
+  mkdir -p "$dir" && mv -f "$colored" "$dir/icon.png"
   cat > "$(entry_of "$name")" <<EOF
 [Desktop Entry]
 Type=Application
@@ -228,9 +244,8 @@ cmd_doctor() {
 
 cmd_uninstall() {
   local link=$HOME/.local/bin/multi-claude
-  if [[ -L $link && $(readlink "$link") == "$DATA/multi-claude/"* ]] || grep -qs '^# multi-claude for' "$link"; then
-    rm -f "$link"
-  fi
+  # Only our own link: a real file there is someone else's install.
+  if [[ -L $link && $(readlink "$link") == "$DATA/multi-claude/"* ]]; then rm -f "$link"; fi
   rm -f "$ENTRIES"/multi-claude-*.desktop
   rm -rf "${DATA:?}/multi-claude"
   repair_pairing
@@ -238,12 +253,13 @@ cmd_uninstall() {
 }
 
 # --- arguments ---------------------------------------------------------------------------------------
-cmd="" name="" color=green
+cmd="" name="" color=green selftest=0
 while (( $# )); do
   case $1 in
     -c|--color)   (( $# >= 2 )) || fail "--color needs a value." 64; color=$2; shift ;;
     -h|--help)    cmd=help ;;
     -v|--version) cmd=version ;;
+    --selftest)   selftest=1 ;;
     -*)           fail "Unknown option '$1'."$'\n\n'"$USAGE" 64 ;;
     *)
       if [[ -z $cmd ]]; then cmd=$1
@@ -258,7 +274,7 @@ case ${cmd,,} in
   list)      cmd_list ;;
   open)      check_name "$name"; cmd_open "$(canonical "$name")" ;;
   remove)    check_name "$name"; cmd_remove "$(canonical "$name")" ;;
-  doctor)    cmd_doctor ;;
+  doctor)    cmd_doctor; if (( selftest )); then echo; echo "Self-test: Windows only (taskbar tagging)."; fi ;;
   uninstall) cmd_uninstall ;;
   version)   echo "multi-claude $VERSION" ;;
   _guard)    check_name "$name"; cmd_guard "$name" ;;   # internal: started by `open`

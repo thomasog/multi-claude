@@ -7,9 +7,9 @@
 # icon, recolored with Core Image. No artwork ships with this tool.
 set -euo pipefail
 
-VERSION=0.1.3
+VERSION=0.1.4
 HERE=${0:A:h}
-CLAUDE_APP=/Applications/Claude.app
+CLAUDE_APP=${MULTI_CLAUDE_CLAUDE_APP:-/Applications/Claude.app}   # the override is for the tests
 APPS=$HOME/Applications
 BUNDLE_PREFIX=io.github.thomasog.multi-claude
 NOT_FOUND="Claude Desktop was not found. Install it from https://claude.ai/download"
@@ -22,7 +22,7 @@ USAGE="multi-claude $VERSION - several Claude Desktop accounts side by side
   multi-claude list                           installed profiles
   multi-claude open <name>                    open a profile
   multi-claude remove <name>                  remove a profile (its sign-in data is kept)
-  multi-claude doctor                         check this Mac
+  multi-claude doctor [--selftest]            check this Mac
   multi-claude uninstall                      remove multi-claude and every profile launcher
 
 Colors: ${(j:, :)COLORS} or a hex value like C0392B"
@@ -34,13 +34,18 @@ is_running()  { pgrep -f -- "--user-data-dir=$(data_dir "$1")( |\$)" >/dev/null;
 check_name() {
   [[ $1 =~ '^[A-Za-z0-9-]{1,24}$' ]] || fail "Profile name: letters, digits and dashes, up to 24 characters (e.g. Work)." 64
   [[ ${1:l} != 3p && ${1:l} != data ]] || fail "The name '$1' is reserved: Claude uses that folder itself." 64
+  case ${1:u} in CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]) fail "The name '$1' is reserved by Windows." 64 ;; esac
 }
 need_claude() { [[ -d $CLAUDE_APP ]] || fail "$NOT_FOUND"; }
+
+# Our launchers are told apart by their bundle ID, never by their name alone.
+bundle_id() { /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$1/Contents/Info.plist" 2>/dev/null; }
+is_ours()   { local id; id=$(bundle_id "$1") && [[ $id == $BUNDLE_PREFIX.* ]]; }
 
 profiles() {
   local app id
   for app in "$APPS"/Claude\ *.app(N); do
-    id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Contents/Info.plist" 2>/dev/null) || continue
+    id=$(bundle_id "$app") || continue
     if [[ $id == $BUNDLE_PREFIX.* ]]; then print -- "${id#$BUNDLE_PREFIX.}"; fi
   done
 }
@@ -53,8 +58,8 @@ manifest_of() { print -- "$HOME/Library/Application Support/${1#*:}/NativeMessag
 host_path()   { sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -n1; }
 main_path()   { sed -E "s#$PROFILE_HOST#/Claude/ChromeNativeHost/#g"; }
 
-# The profile holding a host path, if any ("Claude-3p" is Claude's own folder, not a profile).
-held_by() { [[ $1 =~ $PROFILE_HOST && ${match[1]:l} != 3p ]] && print -- "${match[1]}"; }
+# The profile holding a host path, if any ("Claude-3p" and "Claude-Data" are Claude's own folders).
+held_by() { [[ $1 =~ $PROFILE_HOST && ${match[1]:l} != 3p && ${match[1]:l} != data ]] && print -- "${match[1]}"; }
 
 repair_pairing() {
   local browser manifest main tmp
@@ -91,7 +96,7 @@ is_guard() {
 }
 cmd_guard() {
   local name=$1 waited=0 owner
-  GUARD_LOCK=${TMPDIR:-/tmp}/multi-claude-$name.lock
+  GUARD_LOCK=${TMPDIR:-/tmp}/multi-claude-$(id -u)-$name.lock
   if ! mkdir "$GUARD_LOCK" 2>/dev/null; then
     sleep 1                                   # let a watcher that just took the lock write its pid
     owner=$(cat "$GUARD_LOCK/pid" 2>/dev/null || true)
@@ -119,10 +124,14 @@ canonical() {
 cmd_add() {
   local name=$1 color=$2 hex existing
   check_name "$name"
-  hex=${PALETTE[${color:l}]:-${color#\#}}
+  hex=${color#\#}
+  [[ -z $color ]] || hex=${PALETTE[${color:l}]:-$hex}   # no lookup with an empty key
   [[ $hex =~ '^[0-9A-Fa-f]{6}$' ]] || fail "Unknown color '$color'. Use ${(j:, :)COLORS} or a hex value like C0392B." 64
   existing=$(canonical "$name")
   [[ $existing == "$name" ]] || fail "A profile named '$existing' already exists; names are not case-sensitive." 64
+  if [[ -e $(launcher "$name") ]] && ! is_ours "$(launcher "$name")"; then
+    fail "~/Applications/Claude $name.app exists and is not a multi-claude profile."
+  fi
   need_claude
 
   local work; work=$(mktemp -d)
@@ -176,7 +185,7 @@ cmd_list() {
 
 cmd_open() {
   check_name "$1"
-  [[ -d $(launcher "$1") ]] || fail "No profile named '$1'."
+  is_ours "$(launcher "$1")" || fail "No profile named '$1'."
   need_claude
   repair_pairing
   open -n -a "$CLAUDE_APP" --args --user-data-dir="$(data_dir "$1")"
@@ -185,7 +194,7 @@ cmd_open() {
 
 cmd_remove() {
   check_name "$1"
-  [[ -d $(launcher "$1") ]] || fail "No profile named '$1'."
+  is_ours "$(launcher "$1")" || fail "No profile named '$1'."
   rm -rf "$(launcher "$1")"
   repair_pairing
   print "Removed Claude $1. Its sign-in data is kept in $(data_dir "$1") - delete that folder to sign out for good."
@@ -208,23 +217,25 @@ cmd_doctor() {
 }
 
 cmd_uninstall() {
-  local n link=$HOME/.local/bin/multi-claude
-  for n in ${(f)"$(profiles)"}; do rm -rf "$(launcher "$n")"; done
+  local app link=$HOME/.local/bin/multi-claude
+  for app in "$APPS"/Claude\ *.app(N); do
+    if is_ours "$app"; then rm -rf "$app"; fi
+  done
   rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/multi-claude"
   repair_pairing
-  if [[ -L $link && $(readlink "$link") == "${XDG_DATA_HOME:-$HOME/.local/share}/multi-claude/"* ]] || grep -qs '^# multi-claude for' "$link"; then
-    rm -f "$link"
-  fi
+  # Only our own link: a real file there is someone else's install.
+  if [[ -L $link && $(readlink "$link") == "${XDG_DATA_HOME:-$HOME/.local/share}/multi-claude/"* ]]; then rm -f "$link"; fi
   print "multi-claude removed. Sign-in data is kept in ~/Library/Application Support/Claude-* - delete those folders to sign out for good."
 }
 
 # --- arguments ---------------------------------------------------------------------------------------
-cmd="" name="" color=green
+cmd="" name="" color=green selftest=0
 while (( $# )); do
   case $1 in
     -c|--color)   (( $# >= 2 )) || fail "--color needs a value." 64; color=$2; shift ;;
     -h|--help)    cmd=help ;;
     -v|--version) cmd=version ;;
+    --selftest)   selftest=1 ;;
     -*)           fail "Unknown option '$1'."$'\n\n'"$USAGE" 64 ;;
     *)
       if [[ -z $cmd ]]; then cmd=$1
@@ -239,7 +250,7 @@ case ${cmd:l} in
   list)      cmd_list ;;
   open)      check_name "$name"; cmd_open "$(canonical "$name")" ;;
   remove)    check_name "$name"; cmd_remove "$(canonical "$name")" ;;
-  doctor)    cmd_doctor ;;
+  doctor)    cmd_doctor; if (( selftest )); then print; print "Self-test: Windows only (taskbar tagging)."; fi ;;
   uninstall) cmd_uninstall ;;
   version)   print "multi-claude $VERSION" ;;
   _guard)    check_name "$name"; cmd_guard "$name" ;;   # internal: started by `open`
