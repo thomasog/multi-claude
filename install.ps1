@@ -55,9 +55,9 @@
         } finally { [Console]::CursorVisible = $cursor }
     }
 
-    if (-not (Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue)) {
-        return Show-Failure 'Claude Desktop was not found. Install it from https://claude.ai/download'
-    }
+    # Not fatal: the command installs either way (as on macOS and Linux), and `add` checks again. Some
+    # PowerShell 7 setups can't load the Appx module at all, which would look the same here.
+    $claudeFound = [bool](Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue)
     if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
         return Show-Failure "PowerShell runs in $($ExecutionContext.SessionState.LanguageMode) mode here (usually a company policy), so multi-claude can't work on this PC."
     }
@@ -111,6 +111,10 @@
         Write-Host ''
 
         # 3. An extra profile, right away. The regular Claude is never touched.
+        if (-not $claudeFound) {
+            Write-Host 'Claude Desktop was not found. Install it from https://claude.ai/download, then add a profile.' -ForegroundColor Yellow
+            return
+        }
         Write-Host 'Your regular Claude stays exactly as it is. Now add an extra Claude for another account.'
         $name = Read-Host 'Name for the extra Claude (e.g. Work), or press Enter to skip'
         if ($name) {

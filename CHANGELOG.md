@@ -23,6 +23,11 @@ All notable changes are documented here. The format follows
   Windows instead of the variable.
 - Windows: a release installer always installs its own verified download, even when an older
   extracted copy of multi-claude sits next to it.
+- Windows: the installer installs the command even when it can't see Claude Desktop (as on macOS
+  and Linux), and then skips the "add a profile" step. Some PowerShell 7 setups can't list Store
+  apps, so this used to stop the install with Claude installed.
+- macOS: `add` failed on launchers that `osacompile` builds without a bundle identifier; it now adds
+  the key. Found by a new CI test that runs `add` against a fake `Claude.app`.
 - Windows: moving a profile's data out of AppData works when the Store keeps apps on another drive
   (copy, then delete), runs once even on a double click, and never starts the profile on a missing
   folder. `list` shows a profile that still waits to move.

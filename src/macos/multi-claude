@@ -38,6 +38,11 @@ check_name() {
 }
 need_claude() { [[ -d $CLAUDE_APP ]] || fail "$NOT_FOUND"; }
 
+# Sets a string key of an Info.plist; osacompile's applets don't always carry the key, so add it then.
+plist_set() {
+  /usr/libexec/PlistBuddy -c "Set :$2 \"$3\"" "$1" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :$2 string \"$3\"" "$1"
+}
+
 # Our launchers are told apart by their bundle ID, never by their name alone.
 bundle_id() { /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$1/Contents/Info.plist" 2>/dev/null; }
 is_ours()   { local id; id=$(bundle_id "$1") && [[ $id == $BUNDLE_PREFIX.* ]]; }
@@ -160,8 +165,8 @@ cmd_add() {
   cp "$work/icon.icns" "$built/Contents/Resources/applet.icns"
   /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$plist" 2>/dev/null || true   # it would override applet.icns
   rm -f "$built/Contents/Resources/Assets.car"
-  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_PREFIX.$name" "$plist"
-  /usr/libexec/PlistBuddy -c "Set :CFBundleName Claude $name" "$plist" 2>/dev/null || true
+  plist_set "$plist" CFBundleIdentifier "$BUNDLE_PREFIX.$name"
+  plist_set "$plist" CFBundleName "Claude $name"
   codesign --force -s - "$built" >/dev/null 2>&1 || true   # resources changed: re-sign ad hoc, locally
   mkdir -p "$APPS"; rm -rf "$app"; mv "$built" "$app"
   touch "$app"
