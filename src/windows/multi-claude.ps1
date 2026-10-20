@@ -8,7 +8,7 @@
 # the profile closes. If tagging ever fails, windows just show under the regular Claude button.
 
 $ErrorActionPreference = 'Stop'
-$Version = '0.1.5'
+$Version = '0.2.0'
 $Root    = Join-Path $env:USERPROFILE '.multi-claude'
 # The real LocalAppData folder. Profiles run with LOCALAPPDATA pointing at a view of it (see
 # Sync-LocalView), and so does every terminal they open, so the variable is never used here. Tests
@@ -81,6 +81,30 @@ function Get-OldDataDir([string]$n) {
         $(if ($package) { Join-Path $LocalAppData "Packages\$($package.PackageFamilyName)\LocalCache\Local\Claude-$n" })
         (Join-Path $LocalAppData "Claude-$n")
     ) | Where-Object { $_ -and (Test-Path (Join-Path $_ 'Local State')) } | Select-Object -First 1
+}
+
+# The regular Claude's data folder, physically: moved out of the package since 2.42304, or still in
+# the package's private copy of %APPDATA%.
+function Get-RegularDataDir {
+    $package = Get-ClaudePackage
+    if (-not $package) { return }
+    if (Test-ClaudeDataMoved) { return Join-Path $LocalAppData "Claude-Data\$($package.PackageFamilyName.ToLower())" }
+    Join-Path $LocalAppData "Packages\$($package.PackageFamilyName)\LocalCache\Roaming\Claude"
+}
+
+# The last usage Claude itself recorded in a data folder (plan-usage-history.json): "5h 34%, week 12%
+# at 14:10". It is only as fresh as the last time that Claude was open. Nothing if unknown.
+function Get-UsageNote([string]$dataDir) {
+    try {
+        $history = Get-Content -LiteralPath (Join-Path $dataDir 'plan-usage-history.json') -Raw -ErrorAction Stop | ConvertFrom-Json
+        $last = $history.samples | Sort-Object { [int64]$_.t } | Select-Object -Last 1
+        $parts = @()
+        if ($null -ne $last.u.fh) { $parts += "5h $($last.u.fh)%" }
+        if ($null -ne $last.u.sd) { $parts += "week $($last.u.sd)%" }
+        if (-not $parts) { return }
+        $at = [DateTimeOffset]::FromUnixTimeMilliseconds([int64]$last.t).LocalDateTime
+        "$($parts -join ', ') at $($at.ToString($(if ($at.Date -eq (Get-Date).Date) { 'HH:mm' } else { 'yyyy-MM-dd HH:mm' })))"
+    } catch { return }
 }
 
 # Where a profile's data is now: its own folder, or the old one until `open` moves it.
@@ -309,6 +333,8 @@ function Invoke-List {
         $dir = Find-DataDir $p
         $note = if ($dir -ne (Get-DataDir $p)) { '  (moves out of AppData the next time it opens)' }
         Say ('{0,-16} {1,-8} {2}{3}' -f $p, $(if ($running -contains $p) { 'running' } else { '' }), $dir, $note)
+        $usage = Get-UsageNote $dir
+        if ($usage) { Say ('{0,-25} last usage: {1}' -f '', $usage) }
     }
 }
 
@@ -442,6 +468,8 @@ function Invoke-Doctor {
     Say ('Launch alias:     ' + $(if (Test-Path (Get-LaunchAlias)) { 'ok' } else { 'missing' }))
     if ($package) {
         Say ('Regular data:     ' + $(if (Test-ClaudeDataMoved) { Join-Path $LocalAppData "Claude-Data\$($package.PackageFamilyName.ToLower())" } else { 'inside the app package' }))
+        $usage = Get-UsageNote (Get-RegularDataDir)
+        if ($usage) { Say "Regular usage:    $usage" }
         $view = Join-Path $Root 'local'
         Say ('Profiles see:     ' + $(if (Test-LocalViewNeeded) { "LocalAppData view $view ($(@(Get-ChildItem -LiteralPath $view -Force -ErrorAction SilentlyContinue).Count) folders)" } else { 'the real LocalAppData' }))
     }

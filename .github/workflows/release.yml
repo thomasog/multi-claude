@@ -60,7 +60,14 @@ jobs:
         with:
           subject-path: dist/*
 
+      # A draft first, published only once every file is attached, so /releases/latest never points
+      # at a release whose files are still uploading or failed to upload.
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes-file notes.md
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --draft --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes-file notes.md
+          expected=$(ls dist | LC_ALL=C sort | tr '\n' ' ')   # byte order, as jq sorts
+          attached=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | sort | join(" ")')
+          if [ "$attached " != "$expected" ]; then echo "Attached: $attached; expected: $expected"; exit 1; fi
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

@@ -7,7 +7,7 @@
 # icon, recolored with Core Image. No artwork ships with this tool.
 set -euo pipefail
 
-VERSION=0.1.5
+VERSION=0.2.0
 HERE=${0:A:h}
 CLAUDE_APP=${MULTI_CLAUDE_CLAUDE_APP:-/Applications/Claude.app}   # the override is for the tests
 APPS=$HOME/Applications
@@ -29,6 +29,8 @@ Colors: ${(j:, :)COLORS} or a hex value like C0392B"
 
 fail()        { print -u2 -- "$1"; exit "${2:-1}"; }
 data_dir()    { print -- "$HOME/Library/Application Support/Claude-$1"; }
+# The last usage Claude itself recorded in a data folder, or nothing (see usage.js).
+usage_note()  { osascript -l JavaScript "$HERE/usage.js" "$1" 2>/dev/null || true; }
 launcher()    { print -- "$APPS/Claude $1.app"; }
 is_running()  { pgrep -f -- "--user-data-dir=$(data_dir "$1")( |\$)" >/dev/null; }
 check_name() {
@@ -181,10 +183,12 @@ cmd_add() {
 cmd_list() {
   local -a names; names=(${(f)"$(profiles)"})
   (( $#names )) || { print "No profiles yet. Add one with: multi-claude add <name>"; return 0; }
-  local n state
+  local n state usage
   for n in $names; do
     state=""; if is_running "$n"; then state=running; fi
     printf '%-16s %-8s %s\n' "$n" "$state" "$(data_dir "$n")"
+    usage=$(usage_note "$(data_dir "$n")")
+    [[ -z $usage ]] || printf '%-25s last usage: %s\n' '' "$usage"
   done
 }
 
@@ -216,6 +220,8 @@ cmd_doctor() {
   for tool in sips iconutil osacompile osascript codesign; do
     if command -v $tool >/dev/null; then print "  $tool: ok"; else print "  $tool: missing"; fi
   done
+  local usage; usage=$(usage_note "$HOME/Library/Application Support/Claude")
+  [[ -z $usage ]] || print "Regular usage:    $usage"
   print "Browser pairing:  $(pairing)"
   print
   cmd_list

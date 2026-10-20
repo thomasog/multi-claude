@@ -47,6 +47,12 @@ hue = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)[0] * 360
 print(f"       background hue {hue:.0f}, target 214")
 sys.exit(0 if abs(hue - 214) < 25 else 1)
 PY'
+# Claude's own usage history: the newest sample, the windows we know, nothing for a bad file.
+usage_dir="$tmp/usage"; mkdir -p "$usage_dir"
+print -r -- "{\"version\":2,\"samples\":[{\"t\":1,\"u\":{\"fh\":90}},{\"t\":$(( $(date +%s) * 1000 )),\"u\":{\"fh\":34,\"sd\":12,\"oa\":0}}]}" > "$usage_dir/plan-usage-history.json"
+check 'usage.js reads the newest sample'    '[[ $(osascript -l JavaScript "$repo/src/macos/usage.js" "$usage_dir") == "5h 34%, week 12% at "[0-9][0-9]:[0-9][0-9] ]]'
+check 'usage.js prints nothing for a bad file' 'print -r -- "not json" > "$usage_dir/plan-usage-history.json"; [[ -z $(osascript -l JavaScript "$repo/src/macos/usage.js" "$usage_dir") ]]'
+check 'usage.js prints nothing without a file' '[[ -z $(osascript -l JavaScript "$repo/src/macos/usage.js" "$tmp/no-such-folder") ]]'
 # A fake Claude.app with a real .icns, so `add` builds a launcher. macOS tools only.
 if command -v iconutil >/dev/null && [[ -x /usr/libexec/PlistBuddy ]]; then
   mkdir -p "$tmp/claude.iconset" "$MULTI_CLAUDE_CLAUDE_APP/Contents/Resources"
@@ -68,6 +74,9 @@ if command -v iconutil >/dev/null && [[ -x /usr/libexec/PlistBuddy ]]; then
   check 'the launcher has our bundle ID'      '[[ $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Contents/Info.plist") == io.github.thomasog.multi-claude.Work ]]'
   check 'the launcher has the colored icon'   '[[ -s $app/Contents/Resources/applet.icns ]]'
   check 'list shows the profile'              'grep -q "^Work " <<<"$(zsh "$cli" list)"'
+  mkdir -p "$HOME/Library/Application Support/Claude-Work"
+  print -r -- "{\"samples\":[{\"t\":$(( $(date +%s) * 1000 )),\"u\":{\"fh\":34}}]}" > "$HOME/Library/Application Support/Claude-Work/plan-usage-history.json"
+  check 'list shows the last usage'           'grep -qE "^ {25} last usage: 5h 34% at [0-9]{2}:[0-9]{2}$" <<<"$(zsh "$cli" list)"'
   check 'same name in another case is refused' 'exit_is 64 add work'
   check 'remove finds the profile in any case' 'exit_is 0 remove work && [[ ! -e $app ]]'
   # Another app that happens to be called "Claude <name>.app" is not ours: never touched.

@@ -44,6 +44,15 @@ npm can't work with that spelling, so MCP servers started through `npx` failed i
 The watcher also checks which folder Claude's helper processes really use, and leaves the windows on
 the regular Claude button if it is not the profile's own.
 
+## Usage shown by `list`
+
+While it is open, Claude records its plan usage every few minutes in `plan-usage-history.json` in its
+data folder. `list` reads the newest sample in each profile's folder (`doctor` also the regular
+Claude's) and shows the 5-hour and weekly percentages with the sample's time. Other windows Claude
+records for some plans are left out. The file isn't a published format: if Claude changes it,
+multi-claude shows no usage rather than a wrong one. It never reads sign-ins and never contacts
+Anthropic, so the numbers are only as fresh as the last time that profile was open.
+
 ## Colored icons
 
 `add` takes the Claude icon already installed on the computer and recolors it, so no artwork ships

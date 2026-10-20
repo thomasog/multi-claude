@@ -6,6 +6,22 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-20
+
+### Added
+
+- `list` shows each profile's last 5-hour and weekly usage, and `doctor` the regular Claude's, read
+  from the usage history Claude itself keeps in its data folder. Read-only and local: no sign-in is
+  read and nothing is sent anywhere. It is as fresh as the last time that profile was open.
+- A macOS test-report issue template, to get multi-claude tested on real Macs.
+
+### Changed
+
+- Releases are published only once every file is attached, so the latest-release links never point
+  at a release that is still uploading.
+- The README answers how multi-claude differs from account switchers; the troubleshooting guide
+  notes that tools which restart Claude close profiles too.
+
 ## [0.1.5] - 2026-10-20
 
 ### Changed
@@ -109,7 +125,8 @@ All notable changes are documented here. The format follows
 - Installers that download a versioned release and verify it against the SHA-256 written into them,
   with build provenance attestations, and offer to add a profile with a color picker.
 
-[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/thomasog/multi-claude/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/thomasog/multi-claude/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/thomasog/multi-claude/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/thomasog/multi-claude/compare/v0.1.2...v0.1.3

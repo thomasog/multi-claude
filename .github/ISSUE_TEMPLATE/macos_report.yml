@@ -1,0 +1,35 @@
+name: macOS test report
+description: multi-claude has only run on macOS in CI so far. A report from a real Mac helps a lot, even if everything just worked.
+labels: [macos]
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: macOS and Claude Desktop versions
+      placeholder: e.g. macOS 15.4, Claude 3.1623.0
+    validations:
+      required: true
+  - type: checkboxes
+    id: steps
+    attributes:
+      label: What worked
+      description: Tick what worked; say below what didn't.
+      options:
+        - label: The install command from the README
+        - label: "`multi-claude add Test --color blue` built ~/Applications/Claude Test.app"
+        - label: Opening Claude Test.app started a second Claude window next to the regular one
+        - label: The launcher shows the blue icon in Finder and the Dock
+        - label: Signing in to another account in the Test window worked ("Sign in with a code")
+        - label: Clicking the launcher again while Test is open did not start a second Test window
+        - label: Claude in Chrome still talks to the regular Claude
+        - label: "`multi-claude remove Test` and `multi-claude uninstall` cleaned up"
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `multi-claude doctor`
+      description: Paths include your user name; redact it if you like.
+      render: text
+  - type: textarea
+    id: notes
+    attributes:
+      label: What didn't work, or anything odd

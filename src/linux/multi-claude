@@ -7,7 +7,7 @@
 # with this tool.
 set -euo pipefail
 
-VERSION=0.1.5
+VERSION=0.2.0
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}
 DATA=${XDG_DATA_HOME:-$HOME/.local/share}
@@ -30,6 +30,8 @@ Colors: $COLORS or a hex value like C0392B"
 
 fail()       { echo "$1" >&2; exit "${2:-1}"; }
 data_dir()   { echo "$CONFIG/Claude-$1"; }
+# The last usage Claude itself recorded in a data folder, or nothing (see usage.py).
+usage_note() { command -v python3 >/dev/null && python3 "$HERE/usage.py" "$1" 2>/dev/null || true; }
 app_id()     { echo "multi-claude-${1,,}"; }   # desktop file id = window class, so docks group them
 entry_of()   { echo "$ENTRIES/$(app_id "$1").desktop"; }
 is_running() { command -v pgrep >/dev/null && pgrep -f -- "--user-data-dir=$(data_dir "$1")( |\$)" >/dev/null; }
@@ -191,11 +193,13 @@ EOF
 }
 
 cmd_list() {
-  local file name found=0
+  local file name usage found=0
   for file in "$ENTRIES"/multi-claude-*.desktop; do
     [[ -f $file ]] || continue
     found=1; name=$(entry_key "$file" Name); name=${name#Claude }
     printf '%-16s %-8s %s\n' "$name" "$(if is_running "$name"; then echo running; fi)" "$(data_dir "$name")"
+    usage=$(usage_note "$(data_dir "$name")")
+    [[ -z $usage ]] || printf '%-25s last usage: %s\n' '' "$usage"
   done
   if (( ! found )); then echo "No profiles yet. Add one with: multi-claude add <name>"; fi
 }
@@ -237,6 +241,8 @@ cmd_doctor() {
     echo "Claude Desktop:   not found - https://claude.ai/download"
   fi
   if command -v python3 >/dev/null; then echo "  python3: ok"; else echo "  python3: missing"; fi
+  local usage; usage=$(usage_note "$CONFIG/Claude")
+  [[ -z $usage ]] || echo "Regular usage:    $usage"
   echo "Browser pairing:  $(pairing)"
   echo
   cmd_list
