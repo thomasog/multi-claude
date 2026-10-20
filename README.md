@@ -79,6 +79,11 @@ Colors: `green` (default) `blue` `purple` `red` `teal` `pink` `gray`, or any hex
 
 More: [how it works](docs/how-it-works.md) · [troubleshooting](docs/troubleshooting.md)
 
+> [!NOTE]
+> **On a Mac or Linux?** multi-claude has only run there in CI so far. A short report helps a lot, even
+> if everything just worked: [macOS](https://github.com/thomasog/multi-claude/issues/new?template=macos_report.yml) ·
+> [Linux](https://github.com/thomasog/multi-claude/issues/new?template=linux_report.yml).
+
 ## FAQ
 
 **How is this different from an account switcher?**

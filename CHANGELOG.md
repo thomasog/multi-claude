@@ -10,7 +10,8 @@ All notable changes are documented here. The format follows
 
 - Releases are published only once every file is attached, so the latest-release links never point
   at a release that is still uploading.
-- A macOS test-report issue template, to get multi-claude tested on real Macs.
+- macOS and Linux test-report issue templates, linked from the README, to get multi-claude tested
+  on real machines.
 
 ## [0.1.5] - 2026-10-20
 

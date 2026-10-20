@@ -1,0 +1,36 @@
+name: Linux test report
+description: multi-claude has only run on Linux in CI so far. A report from a real desktop helps a lot, even if everything just worked.
+labels: [linux]
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: Distribution, desktop and Claude Desktop versions
+      placeholder: e.g. Ubuntu 24.04, GNOME 46 on Wayland, Claude 3.1623.0
+    validations:
+      required: true
+  - type: checkboxes
+    id: steps
+    attributes:
+      label: What worked
+      description: Tick what worked; say below what didn't.
+      options:
+        - label: The install command from the README
+        - label: "`multi-claude add Test --color blue` added Claude Test to the app launcher"
+        - label: Opening Claude Test started a second Claude window next to the regular one
+        - label: The launcher shows the blue icon
+        - label: The Test window has its own icon in the dock or taskbar, not grouped under the regular Claude
+        - label: Signing in to another account in the Test window worked ("Sign in with a code")
+        - label: Opening Claude Test again while it is open did not start a second Test window
+        - label: Claude in Chrome still talks to the regular Claude
+        - label: "`multi-claude remove Test` and `multi-claude uninstall` cleaned up"
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `multi-claude doctor`
+      description: Paths include your user name; redact it if you like.
+      render: text
+  - type: textarea
+    id: notes
+    attributes:
+      label: What didn't work, or anything odd
