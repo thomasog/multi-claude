@@ -44,8 +44,9 @@ jobs:
           New-Item -ItemType Directory $env:USERPROFILE -Force | Out-Null
           $shell = (Get-Process -Id $PID).Path
           cmd /d /c "echo.| `"$shell`" -NoProfile -ExecutionPolicy Bypass -File install.ps1"
-          $mc = Join-Path $env:USERPROFILE '.multi-claude\bin\multi-claude.cmd'
-          $onPath = { [Environment]::GetEnvironmentVariable('Path', 'User') -split ';' | Where-Object { $_ -like '*mc-home*' } }
+          $bin = Join-Path $env:USERPROFILE '.multi-claude\bin'; $mc = Join-Path $bin 'multi-claude.cmd'
+          # The stored PATH, unexpanded: expanding %USERPROFILE% would point other entries at the fake home.
+          $onPath = { (Get-Item 'HKCU:\Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames') -split ';' | Where-Object { $_.TrimEnd('\') -eq $bin } }
           & $mc help; if ($LASTEXITCODE) { exit 1 }
           if (-not (& $onPath)) { throw 'bin is not on the user PATH' }
           & $mc uninstall; if ($LASTEXITCODE) { exit 1 }
