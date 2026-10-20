@@ -8,11 +8,18 @@ gives a second, fully separate instance with its own login. That is all a profil
 
 | System  | Profile data                                  | Launcher                                                  |
 |---------|-----------------------------------------------|-----------------------------------------------------------|
-| Windows | `%LOCALAPPDATA%\Claude-<name>`                | Start menu shortcut `Claude <name>`                       |
+| Windows | `%USERPROFILE%\.multi-claude\data\Claude-<name>` | Start menu shortcut `Claude <name>`                    |
 | macOS   | `~/Library/Application Support/Claude-<name>` | `~/Applications/Claude <name>.app`                        |
 | Linux   | `~/.config/Claude-<name>`                     | `~/.local/share/applications/multi-claude-<name in lowercase>.desktop` |
 
 Nothing inside Claude changes, so app updates apply to every profile.
+
+On Windows the profile data stays out of AppData on purpose. The Store app runs in a package that
+virtualizes its writes there, so a folder under `%LOCALAPPDATA%` would really sit in the package's
+private copy (`%LOCALAPPDATA%\Packages\Claude_…\LocalCache`): Explorer can't see it, so Claude's own
+**Edit Config** button points nowhere, and Windows deletes it when the app is reset or uninstalled.
+Profiles made before 0.1.3 lived there; `open` moves each one to its new folder the next time it
+starts while closed.
 
 On Windows, Claude Desktop 2.42304 and later move the regular Claude's data out of the app package,
 to `%LOCALAPPDATA%\Claude-Data\<package>`. Claude finds that folder from `LOCALAPPDATA` alone, so a

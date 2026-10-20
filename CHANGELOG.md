@@ -6,6 +6,17 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-20
+
+### Fixed
+
+- Windows: Edit Config in a profile's Developer settings works (#3). Profile data moves out of
+  AppData, where the Store app kept it in a private copy that Explorer can't see and that Windows
+  deletes when the app is reset, to `%USERPROFILE%\.multi-claude\data\Claude-<name>`. Existing
+  profiles move there the next time they are opened while closed, keeping their sign-in. A Claude
+  Code session whose folder was inside the profile (a scratch session) may need to be started again.
+  `uninstall` leaves that data folder in place.
+
 ## [0.1.2] - 2026-10-19
 
 ### Fixed
@@ -47,7 +58,8 @@ All notable changes are documented here. The format follows
 - Installers that download a versioned release and verify it against the SHA-256 written into them,
   with build provenance attestations, and offer to add a profile with a color picker.
 
-[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/thomasog/multi-claude/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/thomasog/multi-claude/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/thomasog/multi-claude/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thomasog/multi-claude/releases/tag/v0.1.0

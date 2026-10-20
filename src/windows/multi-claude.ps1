@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 # A profile's Claude runs with LOCALAPPDATA written as \\?\C:\... (see Invoke-Open) and hands it to
 # every terminal it opens. Join-Path rejects that form, so use the plain one.
 if ($env:LOCALAPPDATA -like '\\?\*') { $env:LOCALAPPDATA = $env:LOCALAPPDATA.Substring(4) }
-$Version = '0.1.2'
+$Version = '0.1.3'
 $Root    = Join-Path $env:USERPROFILE '.multi-claude'
 $Palette = [ordered]@{
     green = '1F6F43'; blue = '1F4E8C'; purple = '5B3A8E'; red = '9B2C2C'
@@ -63,8 +63,28 @@ function Assert-Name([switch]$New) {
     if ($existing -and $New -and $existing -cne $Name) { Fail "A profile named '$existing' already exists; names are not case-sensitive." 64 }
     if ($existing) { $script:Name = $existing }
 }
-function Get-DataDir([string]$n)    { Join-Path $env:LOCALAPPDATA "Claude-$n" }
+# Profile data lives outside AppData. The Store app virtualizes its writes there, so a folder under
+# %LOCALAPPDATA% would really sit in the package's private copy: invisible to Explorer (Claude's "Edit
+# Config" would point nowhere) and deleted with the app's data.
+function Get-DataDir([string]$n)    { Join-Path $Root "data\Claude-$n" }
 function Get-ProfileDir([string]$n) { Join-Path $Root "profiles\$n" }
+
+# Where versions before 0.1.3 kept a profile's data, physically: the package's private copy of
+# %LOCALAPPDATA%, or the plain folder. $null if neither holds a profile.
+function Get-OldDataDir([string]$n) {
+    $package = Get-ClaudePackage
+    @(
+        $(if ($package) { Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalCache\Local\Claude-$n" })
+        (Join-Path $env:LOCALAPPDATA "Claude-$n")
+    ) | Where-Object { $_ -and (Test-Path (Join-Path $_ 'Local State')) } | Select-Object -First 1
+}
+
+# Where a profile's data is now: its own folder, or the old one until `open` moves it.
+function Find-DataDir([string]$n) {
+    $dir = Get-DataDir $n
+    if (-not (Test-Path $dir)) { $old = Get-OldDataDir $n; if ($old) { $dir = $old } }
+    $dir
+}
 function Get-Shortcut([string]$n)   { Join-Path ([Environment]::GetFolderPath('Programs')) "Claude $n.lnk" }
 function Get-ClaudePackage          { Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue | Select-Object -First 1 }
 function Get-LaunchAlias            { Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\claude-desktop.exe' }
@@ -202,7 +222,7 @@ function Invoke-List {
     if (-not $profiles) { Say 'No profiles yet. Add one with: multi-claude add <name>'; return }
     $running = @(Get-ClaudeMainProcess | ForEach-Object { Get-ProfileOf $_ })
     foreach ($p in $profiles) {
-        Say ('{0,-16} {1,-8} {2}' -f $p, $(if ($running -contains $p) { 'running' } else { '' }), (Get-DataDir $p))
+        Say ('{0,-16} {1,-8} {2}' -f $p, $(if ($running -contains $p) { 'running' } else { '' }), (Find-DataDir $p))
     }
 }
 
@@ -217,7 +237,7 @@ function Invoke-Remove {
     Remove-Item -LiteralPath $dir -Recurse -Force
     Repair-ChromePairing (Get-MainChromeHost)
     Say "Removed Claude $Name. Unpin its taskbar button if pinned."
-    Say "Its sign-in data is kept in $(Get-DataDir $Name) - delete that folder to sign out for good."
+    Say "Its sign-in data is kept in $(Find-DataDir $Name) - delete that folder to sign out for good."
 }
 
 function Invoke-Open {
@@ -234,12 +254,30 @@ function Invoke-Open {
 
     # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to Claude.
     Get-ChildItem Env: | Where-Object Name -Match '^(CLAUDE|ANTHROPIC)' | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" }
+
+    # A profile made before 0.1.3 keeps its data under AppData: move it out while the profile is closed.
+    # If it is open on its old folder, start Claude with that folder again, so Claude just focuses it.
+    $dataDir = Get-DataDir $Name; $old = Get-OldDataDir $Name
+    if ($old -and -not (Test-Path $dataDir)) {
+        if (Get-ClaudeMainProcess | Where-Object { (Get-ProfileOf $_) -eq $Name }) { $dataDir = Join-Path $env:LOCALAPPDATA "Claude-$Name" }
+        else {
+            try {
+                New-Item -ItemType Directory -Path (Split-Path $dataDir) -Force | Out-Null
+                Move-Item -LiteralPath $old -Destination $dataDir
+                Write-OpenLog "moved the profile's data from $old to $dataDir"
+            } catch {
+                Write-OpenLog "could not move the profile's data from ${old}: $($_.Exception.Message)"
+                $dataDir = Join-Path $env:LOCALAPPDATA "Claude-$Name"
+            }
+        }
+    }
+
     if (-not (Test-Path (Get-LaunchAlias))) { Write-OpenLog $NotFound; Fail $NotFound }
     # Since 2.42304 the Store app moves its data out of the package, to %LOCALAPPDATA%\Claude-Data,
     # and finds that folder from LOCALAPPDATA alone, whatever --user-data-dir says: a profile would end
     # up in the regular Claude's folder and hand over to it. Claude skips the move when LOCALAPPDATA
     # looks like a share, so the profile gets the same folder spelled \\?\C:\..., which counts as one.
-    $dataDir = Get-DataDir $Name; $alias = Get-LaunchAlias; $localAppData = $env:LOCALAPPDATA
+    $alias = Get-LaunchAlias; $localAppData = $env:LOCALAPPDATA
     if ($localAppData -match '^[A-Za-z]:\\') { $env:LOCALAPPDATA = "\\?\$localAppData" }
     try { Start-Process -FilePath $alias -ArgumentList ('--user-data-dir="{0}"' -f $dataDir) }
     finally { $env:LOCALAPPDATA = $localAppData }
@@ -353,14 +391,18 @@ function Invoke-Uninstall {
     $path = [MultiClaude.UserPath]::Get()
     $kept = @($path | Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') -ne $bin })
     if ($kept.Count -ne $path.Count) { [MultiClaude.UserPath]::Set([string[]]$kept) }
+    $kept = @((Join-Path $Root 'data'), @(Get-ProfileName | ForEach-Object { Get-OldDataDir $_ })) |
+        ForEach-Object { $_ } | Where-Object { $_ -and (Test-Path $_) }
     # The multi-claude.cmd running this command lives in $Root, and cmd.exe fails if its batch file
-    # vanishes mid-run: delete the folder a moment after we exit.
+    # vanishes mid-run: delete the folders a moment after we exit. The data folder, with the sign-ins,
+    # stays, and $Root goes only if nothing else is left in it.
     if (Test-Path $Root) {
-        $cmd = Join-Path $env:windir 'System32\cmd.exe'
-        Start-Process $cmd -WindowStyle Hidden -ArgumentList "/d /c ping -n 3 127.0.0.1 >nul & rmdir /s /q `"$Root`""
+        $cmd   = Join-Path $env:windir 'System32\cmd.exe'
+        $clean = ('app', 'bin', 'profiles' | ForEach-Object { "rmdir /s /q `"$(Join-Path $Root $_)`" 2>nul" }) -join ' & '
+        Start-Process $cmd -WindowStyle Hidden -ArgumentList "/d /c ping -n 3 127.0.0.1 >nul & $clean & rmdir `"$Root`" 2>nul"
     }
     Say 'multi-claude removed. Unpin any profile buttons from the taskbar.'
-    Say "Sign-in data is kept in $env:LOCALAPPDATA\Claude-* - delete those folders to sign out for good."
+    if ($kept) { Say "Sign-in data is kept in $($kept -join ', ') - delete those folders to sign out for good." }
 }
 
 switch ($Command) {

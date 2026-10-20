@@ -7,7 +7,7 @@
 # icon, recolored with Core Image. No artwork ships with this tool.
 set -euo pipefail
 
-VERSION=0.1.2
+VERSION=0.1.3
 HERE=${0:A:h}
 CLAUDE_APP=/Applications/Claude.app
 APPS=$HOME/Applications

@@ -92,6 +92,23 @@ if (Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue) {
         Assert ([MultiClaude.Shortcut]::GetId((Join-Path $tmp 'Claude Demo.lnk')) -eq 'MultiClaude.Demo') 'no taskbar ID'
     }
     Test 'doctor --selftest tags a real window' { Assert ((Invoke-Cli doctor --selftest) -eq 0) 'self-test failed' }
+    Test 'open moves old profile data out of AppData, once' {
+        $family = (Get-AppxPackage -Name Claude | Select-Object -First 1).PackageFamilyName
+        $home2  = Join-Path $tmp 'home'; $local2 = Join-Path $tmp 'local'
+        $old    = Join-Path $local2 "Packages\$family\LocalCache\Local\Claude-Mig"
+        $new    = Join-Path $home2 '.multi-claude\data\Claude-Mig'
+        New-Item -ItemType Directory (Join-Path $home2 '.multi-claude\profiles\Mig'), $old -Force | Out-Null
+        Set-Content (Join-Path $old 'Local State') 'old'
+        $saved = $env:USERPROFILE, $env:LOCALAPPDATA; $env:USERPROFILE = $home2; $env:LOCALAPPDATA = $local2
+        try {
+            Invoke-Cli open Mig | Out-Null   # no launch alias in the fake LOCALAPPDATA: it stops after the move
+            Assert ((Get-Content (Join-Path $new 'Local State')) -eq 'old') 'data was not moved'
+            Assert (-not (Test-Path $old)) 'old folder is still there'
+            New-Item -ItemType Directory $old -Force | Out-Null; Set-Content (Join-Path $old 'Local State') 'stale'
+            Invoke-Cli open Mig | Out-Null
+            Assert ((Get-Content (Join-Path $new 'Local State')) -eq 'old') 'an existing data folder was replaced'
+        } finally { $env:USERPROFILE, $env:LOCALAPPDATA = $saved }
+    }
 }
 
 Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue

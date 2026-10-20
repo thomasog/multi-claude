@@ -125,7 +125,7 @@ regular Claude in charge of them:
 multi-claude uninstall
 ```
 
-Your profiles' sign-in data stays in `%LOCALAPPDATA%\Claude-*` (Windows),
+Your profiles' sign-in data stays in `%USERPROFILE%\.multi-claude\data` (Windows),
 `~/Library/Application Support/Claude-*` (macOS) or `~/.config/Claude-*` (Linux). Delete those
 folders to sign out for good.
 

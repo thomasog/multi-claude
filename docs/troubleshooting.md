@@ -26,6 +26,12 @@ The terminal was started by a packaged app, where Windows redirects file writes,
 land where the Start menu can't see them. Open PowerShell from the Start menu and run the command
 there.
 
+**Windows: Edit Config (Settings > Developer) says the folder isn't there, or does nothing.**
+The profile was made before 0.1.3, when its data sat in the Store app's private copy of AppData,
+which Explorer can't see. Update multi-claude, quit the profile (also from the tray) and open it from
+its shortcut: its data moves to `%USERPROFILE%\.multi-claude\data\Claude-<name>`, and the button works.
+`%USERPROFILE%\.multi-claude\profiles\<name>\open.log` says whether the move happened.
+
 **Windows: `Join-Path $env:LOCALAPPDATA ...` fails in a profile's terminal.**
 Profiles see `LOCALAPPDATA` as a `\\?\C:\...` path (see [How it works](how-it-works.md)), which
 PowerShell's `Join-Path` rejects. Use `"$env:LOCALAPPDATA\..."` or
