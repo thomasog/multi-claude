@@ -38,8 +38,9 @@ can't handle. Update multi-claude, quit the profile (also from the tray) and ope
 shortcut. `multi-claude doctor` shows `Profiles see: LocalAppData view ...`.
 
 **Windows: in a profile, `LOCALAPPDATA` is `%USERPROFILE%\.multi-claude\local`.**
-That is the view described in [How it works](how-it-works.md): the same folders, reached through
-junctions. To get the real folder in a script, use `[Environment]::GetFolderPath('LocalApplicationData')`.
+That is the view described in [How it works](how-it-works.md), used with Claude 2.42304 only: the same
+folders, reached through junctions. Updating Claude to 3.1623 or later ends it at the profile's next
+start. To get the real folder in a script, use `[Environment]::GetFolderPath('LocalApplicationData')`.
 
 **Windows: CS1069 mentioning `System.Drawing.Primitives` during installation.**
 Older installers referenced only the .NET Framework drawing assembly, which fails in PowerShell 7.

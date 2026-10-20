@@ -22,9 +22,11 @@ Profiles made before 0.1.3 lived there; `open` moves each one to its new folder 
 starts while closed.
 
 On Windows, Claude Desktop 2.42304 and later move the regular Claude's data out of the app package,
-to `%LOCALAPPDATA%\Claude-Data\<package>`. Claude finds that folder from `LOCALAPPDATA` alone, so a
-profile started plainly would open the regular Claude's folder instead of its own (and, with the
-regular Claude open, just hand over to it). Once that move has happened, `open` starts the profile
+to `%LOCALAPPDATA%\Claude-Data\<package>`. 3.1623 and later keep a profile on the folder its
+`--user-data-dir` names, so profiles simply see the real LocalAppData. 2.42304 finds that folder from
+`LOCALAPPDATA` alone, so there a profile started plainly would open the regular Claude's folder
+instead of its own (and, with the regular Claude open, just hand over to it). On 2.42304, once that
+move has happened, `open` starts the profile
 with `LOCALAPPDATA` pointing at a view of the real folder, `%USERPROFILE%\.multi-claude\local`: one
 junction per folder of the real LocalAppData, except Claude's own (`Claude`, `Claude-*`, `Claude Nest`,
 `AnthropicClaude`) and, under `Packages`, Claude's package. Claude finds no `Claude-Data` there and

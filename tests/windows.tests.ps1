@@ -169,6 +169,20 @@ Test 'LocalAppData view mirrors folders but not Claude''s' {
     Assert (-not (Test-Path $view)) 'view not removed'
     Assert ((Get-Content (Join-Path $LocalAppData 'npm-cache\keep.txt')) -eq 'keep') 'removing the view touched a target'
 }
+Test 'the LocalAppData view is used only for Claude 2.42304 once its data moved' {
+    $LocalAppData = Join-Path $tmp 'gate-local'
+    New-Item -ItemType Directory (Join-Path $LocalAppData 'Claude-Data\claude_x') -Force | Out-Null
+    $cases = [ordered]@{ '2.42304.2.0' = $true; '3.1623.0.0' = $false; '3.2000.1.0' = $false }
+    try {
+        foreach ($v in $cases.Keys) {
+            $script:ClaudePackage = [pscustomobject]@{ Version = $v; PackageFamilyName = 'Claude_x' }
+            Assert ([bool](Test-LocalViewNeeded) -eq $cases[$v]) "Claude $v"
+        }
+        Remove-Item (Join-Path $LocalAppData 'Claude-Data') -Recurse -Force
+        $script:ClaudePackage = [pscustomobject]@{ Version = '2.42304.2.0'; PackageFamilyName = 'Claude_x' }
+        Assert (-not (Test-LocalViewNeeded)) 'not moved yet'
+    } finally { $script:ClaudePackage = $null }
+}
 Test 'Open with entry is pointed back from the view to the real alias' {
     $Root = 'C:\Users\a\.multi-claude'; $LocalAppData = 'C:\Users\a\AppData\Local'
     $key = "HKCU:\Software\multi-claude-tests-$([guid]::NewGuid())"

@@ -8,7 +8,7 @@
 # the profile closes. If tagging ever fails, windows just show under the regular Claude button.
 
 $ErrorActionPreference = 'Stop'
-$Version = '0.1.4'
+$Version = '0.1.5'
 $Root    = Join-Path $env:USERPROFILE '.multi-claude'
 # The real LocalAppData folder. Profiles run with LOCALAPPDATA pointing at a view of it (see
 # Sync-LocalView), and so does every terminal they open, so the variable is never used here. Tests
@@ -90,17 +90,23 @@ function Find-DataDir([string]$n) {
     $dir
 }
 
-# Since 2.42304 the Store app moves the regular Claude's data to %LOCALAPPDATA%\Claude-Data\<family>
-# and, finding that folder from LOCALAPPDATA alone, would start any --user-data-dir instance on it.
-# A profile therefore runs with LOCALAPPDATA pointing at a view of the real folder: one junction per
-# folder, except Claude's own. Claude finds no Claude-Data there and keeps the profile's folder, and
-# everything the profile starts (MCP servers, terminals) still reaches its usual folders. Claude's own
-# folders stay out also because Claude refuses a private folder whose last part is a junction. So does
-# Claude's package folder under Packages: there a profile keeps its own Claude in Chrome host, instead
-# of rewriting the regular Claude's.
+# --- Claude 2.42304 workaround: remove once that version is gone ------------------------------------
+# 2.42304 moves the regular Claude's data to %LOCALAPPDATA%\Claude-Data\<family> and, finding that
+# folder from LOCALAPPDATA alone, starts any --user-data-dir instance on it (3.1623 keeps an explicit
+# --user-data-dir). On 2.42304 a profile therefore runs with LOCALAPPDATA pointing at a view of the
+# real folder: one junction per folder, except Claude's own. Claude finds no Claude-Data there and
+# keeps the profile's folder, and everything the profile starts (MCP servers, terminals) still reaches
+# its usual folders. Claude's own folders stay out also because Claude refuses a private folder whose
+# last part is a junction. So does Claude's package folder under Packages: there a profile keeps its
+# own Claude in Chrome host, instead of rewriting the regular Claude's. The pairing and "Open with"
+# repairs undo what a profile writes through the view.
 function Test-ClaudeDataMoved {
     $package = Get-ClaudePackage
     $package -and (Test-Path -PathType Container (Join-Path $LocalAppData "Claude-Data\$($package.PackageFamilyName.ToLower())"))
+}
+function Test-LocalViewNeeded {
+    $package = Get-ClaudePackage
+    $package -and [version]$package.Version -lt [version]'3.1623' -and (Test-ClaudeDataMoved)
 }
 function Sync-LocalView {
     $view = Join-Path $Root 'local'
@@ -122,6 +128,7 @@ function Sync-Junction([string]$from, [string]$to, [scriptblock]$skip) {
         }
     }
 }
+# --- end of the Claude 2.42304 workaround ------------------------------------------------------------
 
 # Deletes a folder without following the junctions inside it (cmd's rd removes the links themselves).
 function Clear-Tree([string]$dir) {
@@ -359,7 +366,7 @@ function Invoke-Open {
 
     if (-not (Test-Path (Get-LaunchAlias))) { Write-OpenLog $NotFound; Fail $NotFound }
     $alias = Get-LaunchAlias; $inherited = $env:LOCALAPPDATA
-    $env:LOCALAPPDATA = if (Test-ClaudeDataMoved) { Sync-LocalView } else { $LocalAppData }
+    $env:LOCALAPPDATA = if (Test-LocalViewNeeded) { Sync-LocalView } else { $LocalAppData }
     try { Start-Process -FilePath $alias -ArgumentList ('--user-data-dir="{0}"' -f $dataDir) }
     finally { $env:LOCALAPPDATA = $inherited }
     $mainHost = Get-MainChromeHost; $lastLookup = Get-Date
@@ -434,10 +441,9 @@ function Invoke-Doctor {
     Say ('Claude Desktop:   ' + $(if ($package) { $package.Version } else { 'not found - https://claude.ai/download' }))
     Say ('Launch alias:     ' + $(if (Test-Path (Get-LaunchAlias)) { 'ok' } else { 'missing' }))
     if ($package) {
-        $moved = Test-ClaudeDataMoved
-        Say ('Regular data:     ' + $(if ($moved) { Join-Path $LocalAppData "Claude-Data\$($package.PackageFamilyName.ToLower())" } else { 'inside the app package' }))
+        Say ('Regular data:     ' + $(if (Test-ClaudeDataMoved) { Join-Path $LocalAppData "Claude-Data\$($package.PackageFamilyName.ToLower())" } else { 'inside the app package' }))
         $view = Join-Path $Root 'local'
-        Say ('Profiles see:     ' + $(if ($moved) { "LocalAppData view $view ($(@(Get-ChildItem -LiteralPath $view -Force -ErrorAction SilentlyContinue).Count) folders)" } else { 'the real LocalAppData' }))
+        Say ('Profiles see:     ' + $(if (Test-LocalViewNeeded) { "LocalAppData view $view ($(@(Get-ChildItem -LiteralPath $view -Force -ErrorAction SilentlyContinue).Count) folders)" } else { 'the real LocalAppData' }))
     }
     Say ('PowerShell mode:  ' + $ExecutionContext.SessionState.LanguageMode)
     Say ('Browser pairing:  ' + (Get-ChromePairing))

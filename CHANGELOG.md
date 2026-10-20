@@ -6,6 +6,14 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-10-20
+
+### Changed
+
+- Windows: with Claude Desktop 3.1623 and later, which keeps a profile on the folder its
+  `--user-data-dir` names, profiles see the real LocalAppData again. The LocalAppData view of 0.1.4
+  stays only for Claude 2.42304, until that version is gone.
+
 ## [0.1.4] - 2026-10-20
 
 ### Fixed
@@ -101,7 +109,8 @@ All notable changes are documented here. The format follows
 - Installers that download a versioned release and verify it against the SHA-256 written into them,
   with build provenance attestations, and offer to add a profile with a color picker.
 
-[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/thomasog/multi-claude/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/thomasog/multi-claude/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/thomasog/multi-claude/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/thomasog/multi-claude/compare/v0.1.1...v0.1.2
