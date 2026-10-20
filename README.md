@@ -59,7 +59,7 @@ first.
 
 ```sh
 multi-claude add Work --color blue    # a new profile, in the Start menu, Applications or app launcher
-multi-claude list                     # your profiles, with the last usage Claude recorded
+multi-claude list                     # your profiles
 multi-claude remove Work              # remove it; its sign-in data is kept
 multi-claude doctor                   # check this computer
 multi-claude doctor --selftest        # Windows only: also test taskbar tagging
@@ -81,19 +81,10 @@ More: [how it works](docs/how-it-works.md) · [troubleshooting](docs/troubleshoo
 
 ## FAQ
 
-**Can Claude Desktop be signed in to two accounts at the same time?**
-Not by itself: the app holds one sign-in. With multi-claude each account gets its own profile, so you
-can have, say, your work and personal accounts open side by side, each in its own window.
-
 **How is this different from an account switcher?**
 Account switchers keep one Claude open and swap its sign-in when you pick another account, which
 restarts Claude (and closes every Claude window, profiles included). multi-claude keeps every account
 open at once and never touches sign-ins: each profile signs in on its own.
-
-**Can I see how much each account has used?**
-`multi-claude list` shows each profile's last 5-hour and weekly usage, and `doctor` the regular
-Claude's, as Claude itself recorded them the last time that profile was open. Nothing is sent
-anywhere and no sign-in is read.
 
 **Can I use Claude Code in every profile at once?**
 Yes. Each profile has its own account and its own list of sessions. All profiles share `~/.claude`:

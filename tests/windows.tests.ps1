@@ -169,21 +169,6 @@ Test 'LocalAppData view mirrors folders but not Claude''s' {
     Assert (-not (Test-Path $view)) 'view not removed'
     Assert ((Get-Content (Join-Path $LocalAppData 'npm-cache\keep.txt')) -eq 'keep') 'removing the view touched a target'
 }
-Test 'last usage Claude recorded in a data folder' {
-    $dir = Join-Path $tmp 'usage'; New-Item -ItemType Directory $dir -Force | Out-Null
-    $file = Join-Path $dir 'plan-usage-history.json'
-    $ms = { param($when) [DateTimeOffset]::new($when).ToUnixTimeMilliseconds() }
-    $today = (Get-Date).Date.AddHours(9).AddMinutes(5)
-    Set-Content $file ('{"version":2,"samples":[{"t":' + (& $ms $today) + ',"u":{"fh":34,"sd":12}},{"t":' + (& $ms $today.AddHours(-2)) + ',"u":{"fh":90}}]}')
-    Assert ((Get-UsageNote $dir) -eq '5h 34%, week 12% at 09:05') "got $(Get-UsageNote $dir)"
-    Set-Content $file ('{"samples":[{"t":' + (& $ms (Get-Date '2026-01-02 22:42')) + ',"u":{"fh":99,"oa":0}}]}')
-    Assert ((Get-UsageNote $dir) -eq '5h 99% at 2026-01-02 22:42') "got $(Get-UsageNote $dir)"
-    foreach ($bad in 'not json', '{"samples":[]}', '{"samples":[{"t":1,"u":{"xx":1}}]}') {
-        Set-Content $file $bad
-        Assert (-not (Get-UsageNote $dir)) "expected nothing for $bad"
-    }
-    Assert (-not (Get-UsageNote (Join-Path $tmp 'no-such-folder'))) 'expected nothing without a file'
-}
 Test 'the LocalAppData view is used only for Claude 2.42304 once its data moved' {
     $LocalAppData = Join-Path $tmp 'gate-local'
     New-Item -ItemType Directory (Join-Path $LocalAppData 'Claude-Data\claude_x') -Force | Out-Null

@@ -73,9 +73,5 @@ An idle Claude can install an app update, and updating closes every Claude windo
 you are not using. Account-switcher tools that restart Claude to swap its sign-in also close every
 Claude window, profiles included. Reopen the profiles from their launchers.
 
-**`list` shows no usage for a profile.**
-The usage comes from a file Claude itself writes while it is open (`plan-usage-history.json` in the
-profile's data folder). A profile that hasn't been open since it signed in has none yet; open it once.
-
 **Sign a profile out for good.**
 Run `multi-claude remove <name>`, then delete the data folder it prints.

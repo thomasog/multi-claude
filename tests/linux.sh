@@ -47,14 +47,6 @@ check 'entry id matches its window class'     'grep -q "^StartupWMClass=multi-cl
 check 'icon was recolored'                    '[ -f "$XDG_DATA_HOME/multi-claude/profiles/Work/icon.png" ]'
 check 'same name in another case is refused'  'exit_is 64 add work'
 check 'list shows the profile'                'grep -q "^Work " <<<"$("$cli" list)"'
-# Claude's own usage history in the profile's and the regular Claude's data folders.
-now_ms=$(python3 -c 'import time; print(int(time.time() * 1000))')
-mkdir -p "$XDG_CONFIG_HOME/Claude-Work" "$XDG_CONFIG_HOME/Claude"
-printf '{"version":2,"samples":[{"t":%s,"u":{"fh":34,"sd":12}}]}' "$now_ms" > "$XDG_CONFIG_HOME/Claude-Work/plan-usage-history.json"
-printf '{"version":2,"samples":[{"t":%s,"u":{"fh":7}}]}' "$now_ms" > "$XDG_CONFIG_HOME/Claude/plan-usage-history.json"
-check 'list shows the last usage'             'grep -qE "^ {25} last usage: 5h 34%, week 12% at [0-9]{2}:[0-9]{2}$" <<<"$("$cli" list)"'
-check 'doctor shows the regular usage'        'grep -qE "^Regular usage: +5h 7% at " <<<"$("$cli" doctor)"'
-rm -f "$XDG_CONFIG_HOME/Claude/plan-usage-history.json"
 check 'removing an unknown profile exits 1'   'exit_is 1 remove Nope'
 check 'remove finds the profile in any case'  'exit_is 0 remove work && [ ! -f "$entry" ] && [ ! -d "$XDG_DATA_HOME/multi-claude/profiles/Work" ]'
 printf 'not a png' > "$tmp/broken.png"
