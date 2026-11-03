@@ -6,6 +6,8 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-03
+
 ### Fixed
 
 - macOS: opening a profile that is already open brings it to the front. It used to start a second
@@ -124,7 +126,8 @@ All notable changes are documented here. The format follows
 - Installers that download a versioned release and verify it against the SHA-256 written into them,
   with build provenance attestations, and offer to add a profile with a color picker.
 
-[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/thomasog/multi-claude/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/thomasog/multi-claude/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/thomasog/multi-claude/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/thomasog/multi-claude/compare/v0.1.2...v0.1.3
