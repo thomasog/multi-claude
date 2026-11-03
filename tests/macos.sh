@@ -123,7 +123,9 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   }
   fresh="$HOME/Library/Application Support/Claude-Fresh"
   check 'open --env runs Code on the own folder' 'opened Fresh && grep -qx "CLAUDE_CONFIG_DIR=$fresh/.claude" "$dump" && grep -qx "ARG --user-data-dir=$fresh" "$dump" && ! grep -q "^CLAUDECODE=" "$dump" || { cat "$dump" 2>/dev/null; false; }'
+  touch "$HOME/Applications/Claude Fresh.app/kept"
   check 'add switches it to shared'             'out=$(zsh "$cli" add Fresh --claude-code shared 2>&1) || { print -r -- "$out"; false; } && [[ ! -e $fresh/.claude ]]'
+  check 'changing the mode leaves the launcher' '[[ -e "$HOME/Applications/Claude Fresh.app/kept" ]]'
   check 'open leaves a shared profile alone'    'opened Fresh && ! grep -q "^CLAUDE_CONFIG_DIR=" "$dump" || { cat "$dump" 2>/dev/null; false; }'
   for lock in $tmp/multi-claude-*.lock(N); do [[ -f $lock/pid ]] && kill "$(<$lock/pid)" 2>/dev/null; done
   exit_is 0 remove Fresh

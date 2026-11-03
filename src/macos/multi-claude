@@ -195,6 +195,10 @@ cmd_add() {
   if [[ -e $(launcher "$name") ]] && ! is_ours "$(launcher "$name")"; then
     fail "~/Applications/Claude $name.app exists and is not a multi-claude profile."
   fi
+  # --claude-code alone on an existing profile changes only that: nothing records its color.
+  if [[ -n $3 && $color_given == 0 ]] && is_ours "$(launcher "$name")"; then
+    check_code "$name" "$code"; set_code "$name" "$code"; return
+  fi
   need_claude
   check_code "$name" "$code"
 
@@ -319,10 +323,10 @@ cmd_uninstall() {
 }
 
 # --- arguments ---------------------------------------------------------------------------------------
-cmd="" name="" color=green code="" selftest=0
+cmd="" name="" color=green color_given=0 code="" selftest=0
 while (( $# )); do
   case $1 in
-    -c|--color)   (( $# >= 2 )) || fail "--color needs a value." 64; color=$2; shift ;;
+    -c|--color)   (( $# >= 2 )) || fail "--color needs a value." 64; color=$2; color_given=1; shift ;;
     --claude-code) (( $# >= 2 )) || fail "--claude-code needs a value." 64; code=$2; shift ;;
     -h|--help)    cmd=help ;;
     -v|--version) cmd=version ;;

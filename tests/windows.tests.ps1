@@ -328,6 +328,14 @@ Test 'Claude Code: add keeps a profile''s mode, and new profiles get their own' 
         New-Item -ItemType Directory (Get-CodeDir 'Old') -Force | Out-Null
         Assert ((Get-WantedCode 'Old') -eq 'own') 'an existing profile with a folder'
         Assert ((Get-WantedCode 'Old' 'SYNCED') -eq 'synced') 'asked for, in any case'
+        New-Item -ItemType Directory (Get-ProfileDir 'Old') -Force | Out-Null
+        $script:ClaudeCode = 'own'
+        Assert (Test-CodeOnly 'Old') '--claude-code alone on an existing profile keeps its color'
+        Assert (-not (Test-CodeOnly 'New')) 'a new profile needs its icon'
+        $script:ColorGiven = $true
+        Assert (-not (Test-CodeOnly 'Old')) '--color recolors'
+        $script:ColorGiven = $false; $script:ClaudeCode = $null
+        Assert (-not (Test-CodeOnly 'Old')) 'plain add rebuilds the profile'
         # A profile made before 0.1.3 keeps its data in AppData until it opens: no own folder before that.
         New-Item -ItemType Directory (Join-Path $LocalAppData 'Claude-Legacy') -Force | Out-Null
         Set-Content (Join-Path $LocalAppData 'Claude-Legacy\Local State') 'old'

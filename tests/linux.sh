@@ -92,6 +92,8 @@ bash -c 'sleep 30; :' _ "--user-data-dir=$XDG_CONFIG_HOME/Claude-Code" & running
 sleep 0.3
 check 'the mode does not change while it runs'   'exit_is 1 add Code --claude-code shared && [ -d "$own" ] && grep -q "^Quit Claude Code first" <<<"$("$cli" add Code --claude-code shared 2>&1)"'
 check 'but it recolors'                          'exit_is 0 add Code --color teal && exit_is 0 add Code --claude-code own'
+icon=$(grep -m1 '^Icon=' "$XDG_DATA_HOME/applications/multi-claude-code.desktop" | cut -d= -f2-); sum=$(md5sum < "$icon")
+check 'changing the mode keeps the color'        'exit_is 0 add Code --claude-code synced && exit_is 0 add Code --claude-code own && [ "$(md5sum < "$icon")" = "$sum" ]'
 kill "$running"; wait "$running" 2>/dev/null
 # open: a fake Claude that writes down its environment and arguments.
 mkdir -p "$tmp/bin"; dump=$tmp/open.dump

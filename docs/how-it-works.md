@@ -112,7 +112,8 @@ end up in one `projects` folder. So each profile picks one of three modes, with
   the data folder is deleted.
 - **Defaults.** A new profile, one without a data folder yet, gets `own`. A profile that already
   has data keeps its mode when `add` runs again without `--claude-code`, so existing profiles stay
-  `shared` until you change them.
+  `shared` until you change them. `--claude-code` alone changes only the mode: the icon and color
+  stay.
 - **Links, not copies.** `skills`, `agents`, `commands` and `output-styles` are symbolic links
   (junctions on Windows, which need no Developer Mode), so a skill added in either place is there in
   both. `add` makes a link only where the profile has nothing of that name and `~/.claude` has the

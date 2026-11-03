@@ -42,10 +42,10 @@ agents, commands, output styles and CLAUDE.md from ~/.claude) or shared (~/.clau
 "@
 
 # --- arguments ---------------------------------------------------------------------------------------
-$Command = $null; $Name = $null; $Color = 'green'; $ClaudeCode = $null; $Preview = $null; $SelfTest = $false
+$Command = $null; $Name = $null; $Color = 'green'; $ColorGiven = $false; $ClaudeCode = $null; $Preview = $null; $SelfTest = $false
 for ($i = 0; $i -lt $args.Count; $i++) {
     switch -Regex ([string]$args[$i]) {
-        '^(-c|--color)$' { if ($i + 1 -ge $args.Count) { Fail '--color needs a value.' 64 }; $Color = [string]$args[++$i]; break }
+        '^(-c|--color)$' { if ($i + 1 -ge $args.Count) { Fail '--color needs a value.' 64 }; $Color = [string]$args[++$i]; $ColorGiven = $true; break }
         '^--claude-code$' { if ($i + 1 -ge $args.Count) { Fail '--claude-code needs a value.' 64 }; $ClaudeCode = [string]$args[++$i]; break }
         '^--preview$'    { if ($i + 1 -ge $args.Count) { Fail '--preview needs a folder.' 64 }; $Preview = [string]$args[++$i]; break }
         '^--selftest$'   { $SelfTest = $true; break }
@@ -184,6 +184,8 @@ function Get-WantedCode([string]$n, [string]$asked) {
     if ($asked -notin 'own', 'synced', 'shared') { Fail "Unknown Claude Code mode '$asked'. Use own, synced or shared." 64 }
     $asked.ToLower()
 }
+# --claude-code alone on an existing profile changes only that: nothing records its color.
+function Test-CodeOnly([string]$n) { [bool]($ClaudeCode -and -not $ColorGiven -and -not $Preview -and (Get-ProfileName) -contains $n) }
 # Why the profile can't move to $mode now, if it can't: `add` checks before it changes anything.
 function Get-CodeChangeProblem([string]$n, [string]$mode) {
     $dir = Get-CodeDir $n; $now = Get-CodeMode $dir
@@ -393,6 +395,12 @@ function Get-OpenArgument([string]$n) {
 function Invoke-Add {
     Assert-Name -New
     $code = Get-WantedCode $Name $ClaudeCode
+    if (Test-CodeOnly $Name) {
+        Import-Interop; Assert-NotPackaged
+        $problem = Get-CodeChangeProblem $Name $code; if ($problem) { Fail $problem }
+        Switch-ClaudeCode (Get-DataDir $Name) $code
+        return
+    }
     $hex = if ($Palette.Contains($Color.ToLower())) { $Palette[$Color.ToLower()] } else { $Color.TrimStart('#') }
     if ($hex -notmatch '^[0-9A-Fa-f]{6}$') { Fail "Unknown color '$Color'. Use $($Palette.Keys -join ', ') or a hex value like C0392B." 64 }
     $package = Get-ClaudePackage
