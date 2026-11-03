@@ -6,6 +6,14 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- macOS: opening a profile that is already open brings it to the front. It used to start a second
+  Claude on the same data, because Claude has no single-instance lock on macOS.
+- macOS: a profile opened from inside a Claude session no longer inherits that session's `CLAUDE_*`
+  and `ANTHROPIC_*` variables, as on Windows and Linux.
+- macOS: `multi-claude list` sees a running profile from a terminal inside it.
+
 ### Changed
 
 - Releases are published only once every file is attached, so the latest-release links never point

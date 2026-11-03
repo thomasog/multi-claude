@@ -6,6 +6,9 @@ Claude Desktop is an Electron app. Electron allows one running instance per **da
 the sign-in inside that folder. Starting the official app with `--user-data-dir=<folder>` therefore
 gives a second, fully separate instance with its own login. That is all a profile is.
 
+On macOS Claude holds no such lock, so a second start would run it twice on the same data. There
+`multi-claude open` looks for the profile first and, when it runs, brings it forward by process ID.
+
 | System  | Profile data                                  | Launcher                                                  |
 |---------|-----------------------------------------------|-----------------------------------------------------------|
 | Windows | `%USERPROFILE%\.multi-claude\data\Claude-<name>` | Start menu shortcut `Claude <name>`                    |
