@@ -7,7 +7,7 @@ cli=$repo/src/macos/multi-claude
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 # Nothing may touch the real home or the installed Claude.
-export HOME=$tmp/home MULTI_CLAUDE_CLAUDE_APP=$tmp/Claude.app; unset XDG_DATA_HOME
+export HOME=$tmp/home TMPDIR=$tmp MULTI_CLAUDE_CLAUDE_APP=$tmp/Claude.app; unset XDG_DATA_HOME
 mkdir -p "$HOME"
 failed=0
 check()   { if eval "$2"; then print "  ok   $1"; else print "  FAIL $1"; failed=1; fi; }
@@ -76,6 +76,31 @@ if command -v iconutil >/dev/null && [[ -x /usr/libexec/PlistBuddy ]]; then
   check 'add refuses an app that is not a profile' 'exit_is 1 add Notes && grep -qx "~/Applications/Claude Notes.app exists and is not a multi-claude profile." <<<"$(zsh "$cli" add Notes 2>&1)"'
   check 'open and remove ignore it'           'exit_is 1 open Notes && exit_is 1 remove Notes && [[ -f $other/Contents/Info.plist ]]'
   check 'list ignores it'                     'grep -q "^No profiles yet" <<<"$(zsh "$cli" list)"'
+  # `open`, with stand-ins for Claude's processes and for the two commands that act on the desktop.
+  mkdir -p "$tmp/stub"
+  print -r -- '#!/bin/zsh
+print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC)" >> "$STUB_LOG"; exit ${STUB_EXIT:-0}' > "$tmp/stub/open"
+  cp "$tmp/stub/open" "$tmp/stub/osascript"; chmod +x "$tmp/stub/open" "$tmp/stub/osascript"
+  export STUB_LOG=$tmp/stub.log
+  stubbed() { : > "$STUB_LOG"; PATH="$tmp/stub:$PATH" zsh "$cli" "$@" >/dev/null 2>&1; }
+  zsh "$cli" add Run >/dev/null 2>&1
+  data="$HOME/Library/Application Support/Claude-Run"
+  check 'open starts Claude on the profile folder' 'stubbed open Run && grep -qF -- "-n -a $MULTI_CLAUDE_CLAUDE_APP --args --user-data-dir=$data" "$STUB_LOG"'
+  check 'open drops the variables of a Claude session' 'CLAUDE_CODE_USER_EMAIL=a ANTHROPIC_BASE_URL=b CLAUDECODE=1 stubbed open Run && grep -qF -- "--user-data-dir" "$STUB_LOG" && ! grep -qE "^(CLAUDE|ANTHROPIC)" "$STUB_LOG"'
+  pkill -f -- "$cli _guard Run"
+  ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper --type=gpu --user-data-dir=$data" sleep 30 ) & helper=$!
+  check 'a helper alone is not the main process'    'stubbed open Run && grep -qF -- "--user-data-dir=$data" "$STUB_LOG"'
+  pkill -f -- "$cli _guard Run"
+  ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude --user-data-dir=$data" sleep 30 ) & main=$!
+  check 'open of a running profile starts no second Claude' 'stubbed open Run && ! grep -qF -- "--user-data-dir" "$STUB_LOG"'
+  check 'open of a running profile brings that process forward' 'grep -qF -- "ProcessIdentifier($main)" "$STUB_LOG"'
+  check 'open survives a process that is quitting' 'STUB_EXIT=1 stubbed open Run'
+  kill $main $helper
+  : > "$STUB_LOG"
+  ( PATH="$tmp/stub:$PATH"; exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude --user-data-dir=$data" zsh "$cli" open Run ) >/dev/null 2>&1
+  check 'open from a terminal inside the profile starts no second Claude' 'grep -qF "ProcessIdentifier(" "$STUB_LOG" && ! grep -qF -- "--user-data-dir" "$STUB_LOG"'
+  ( exec -a "fake --user-data-dir=$data" zsh "$cli" list ) > "$tmp/list.out"
+  check 'list sees a profile from a terminal inside it' 'grep -q "^Run  *running" "$tmp/list.out"'
   mkdir -p "$HOME/.local/bin"; cp "$cli" "$HOME/.local/bin/multi-claude"
   check 'uninstall removes profiles only'     'exit_is 0 add Two && exit_is 0 uninstall && [[ ! -e "$HOME/Applications/Claude Two.app" && -d $other ]]'
   check 'uninstall leaves a real ~/.local/bin/multi-claude alone' '[[ -f $HOME/.local/bin/multi-claude && ! -L $HOME/.local/bin/multi-claude ]]'

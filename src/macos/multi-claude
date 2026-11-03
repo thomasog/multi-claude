@@ -30,7 +30,10 @@ Colors: ${(j:, :)COLORS} or a hex value like C0392B"
 fail()        { print -u2 -- "$1"; exit "${2:-1}"; }
 data_dir()    { print -- "$HOME/Library/Application Support/Claude-$1"; }
 launcher()    { print -- "$APPS/Claude $1.app"; }
-is_running()  { pgrep -f -- "--user-data-dir=$(data_dir "$1")( |\$)" >/dev/null; }
+# -a: pgrep skips its own ancestors otherwise, and a terminal inside a profile descends from it.
+is_running()  { pgrep -af -- "--user-data-dir=$(data_dir "$1")( |\$)" >/dev/null; }
+# The profile's main process: Claude's helpers carry the same --user-data-dir.
+main_pid()    { pgrep -af -- "^$CLAUDE_APP/Contents/MacOS/[^ ]+ (.* )?--user-data-dir=$(data_dir "$1")( |\$)" | head -n1; }
 check_name() {
   [[ $1 =~ '^[A-Za-z0-9-]{1,24}$' ]] || fail "Profile name: letters, digits and dashes, up to 24 characters (e.g. Work)." 64
   [[ ${1:l} != 3p && ${1:l} != data ]] || fail "The name '$1' is reserved: Claude uses that folder itself." 64
@@ -188,12 +191,21 @@ cmd_list() {
   done
 }
 
+# By PID, because `open -a` would pick any Claude, the regular one included.
+bring_forward() {
+  osascript -l JavaScript -e "ObjC.import('AppKit'); var app = \$.NSRunningApplication.runningApplicationWithProcessIdentifier($1); app.unhide; app.activateWithOptions(\$.NSApplicationActivateAllWindows)" >/dev/null 2>&1 || true   # it may be quitting
+}
+
 cmd_open() {
   check_name "$1"
   is_ours "$(launcher "$1")" || fail "No profile named '$1'."
   need_claude
   repair_pairing
-  open -n -a "$CLAUDE_APP" --args --user-data-dir="$(data_dir "$1")"
+  # Claude has no single-instance lock here: a second `open -n` would run it twice on the same data.
+  local pid; if pid=$(main_pid "$1"); then bring_forward "$pid"; return 0; fi
+  # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to Claude.
+  local -a launch=(open -n -a "$CLAUDE_APP" --args --user-data-dir="$(data_dir "$1")")
+  ( unset -m 'CLAUDE*' 'ANTHROPIC*'; "${launch[@]}" )
   "$HERE/multi-claude" _guard "$1" >/dev/null 2>&1 &!
 }
 
