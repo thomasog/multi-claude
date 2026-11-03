@@ -80,7 +80,9 @@ session_ids() {
 # Copies $1 to $2 unless $2 is there already; an interrupted copy never stays half done.
 copy_new() {
   [[ -e $1 && ! -e $2 ]] || return 1
-  mkdir -p "$(dirname "$2")" && rm -rf "$2.partial" && cp -R "$1" "$2.partial" && mv "$2.partial" "$2"
+  if ! { mkdir -p "$(dirname "$2")" && rm -rf "$2.partial" && cp -R "$1" "$2.partial" && mv "$2.partial" "$2"; }; then
+    fail "Could not copy $1. Run add again to go on."
+  fi
 }
 # Copies profile $1's sessions (transcript, its folder, file history) from ~/.claude into $2, which
 # stays untouched. Prints how many transcripts it copied.
@@ -100,7 +102,7 @@ copy_sessions() {
 
 # Puts profile $1 on Claude Code mode $2 and says what changed. check_code ran first.
 set_code() {
-  local name=$1 mode=$2 dir n count list=""
+  local name=$1 mode=$2 dir work n count list=""
   dir=$(code_dir "$name")
   if [[ $mode == shared ]]; then
     if [[ -d $dir ]]; then
@@ -112,8 +114,11 @@ set_code() {
     return
   fi
   if [[ ! -d $dir ]]; then
-    if [[ -d $dir.off ]]; then mv "$dir.off" "$dir"; else mkdir -p "$dir"; fi
-    count=$(copy_sessions "$name" "$dir")
+    # Filled aside and renamed last: a copy that stops halfway leaves the profile shared, and add goes on from there.
+    if [[ -d $dir.off ]]; then work=$dir.off; else work=$dir.new; fi
+    mkdir -p "$work"
+    count=$(copy_sessions "$name" "$work")
+    mv "$work" "$dir"
     if (( count )); then echo "  Copied $count Claude Code session(s) of this profile from ~/.claude, which stays as it is."; fi
   fi
   if [[ $mode == own ]]; then

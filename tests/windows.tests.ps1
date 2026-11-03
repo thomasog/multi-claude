@@ -293,6 +293,15 @@ Test 'Claude Code: shared parks the folder, own brings it back' {
     Switch-ClaudeCode $f.Data 'own' 6>$null
     Assert ((Get-Content (Join-Path $f.Own "projects\-work\$($f.Id).jsonl")) -eq 'changed' -and -not (Test-Path "$($f.Own).off")) 'not brought back'
 }
+Test 'Claude Code: a copy that stops halfway leaves the profile shared, and add goes on from there' {
+    $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared; $stopped = $false
+    try { & { function Copy-New { throw 'disk full' }; Switch-ClaudeCode $f.Data 'own' 6>$null } } catch { $stopped = $true }
+    Assert $stopped 'the copy should have failed'
+    Assert ((Get-CodeMode $f.Own) -eq 'shared') "mode $(Get-CodeMode $f.Own)"
+    Switch-ClaudeCode $f.Data 'own' 6>$null
+    Assert ((Get-Content (Join-Path $f.Own "projects\-work\$($f.Id).jsonl")) -eq 'transcript') 'transcript not copied the second time'
+    Assert (-not (Test-Path "$($f.Own).new")) 'the work folder is left'
+}
 Test 'Claude Code: settings with an env block or a credential helper are not copied' {
     $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared
     foreach ($text in '{"env": {"ANTHROPIC_API_KEY": "x"}}', '{ "apiKeyHelper" : "~/key.sh" }') {

@@ -82,6 +82,11 @@ check "synced keeps the profile's own folders"   'exit_is 0 add Code --claude-co
 check 'shared parks the folder'                  'exit_is 0 add Code --claude-code shared && [ "$(code_of Code)" = shared ] && [ ! -e "$own" ] && [ -d "$own.off/projects" ]'
 check 'own brings it back'                       'exit_is 0 add Code --claude-code own && [ "$(cat "$own/projects/-work/$id.jsonl")" = changed ] && [ ! -e "$own.off" ]'
 rm -rf "$own"; echo '{"env": {"ANTHROPIC_API_KEY": "x"}}' > "$shared/settings.json"; before=$(snapshot)
+mkdir -p "$own.new"; : > "$own.new/projects"   # a file in the way stops the copy
+check 'a copy that stops halfway leaves it shared' 'exit_is 1 add Code --claude-code own && [ "$(code_of Code)" = shared ] && grep -q "^Could not copy" <<<"$("$cli" add Code --claude-code own 2>&1)"'
+rm "$own.new/projects"
+check 'add goes on from there'                   'exit_is 0 add Code --claude-code own && [ "$(cat "$own/projects/-work/$id.jsonl")" = transcript ] && [ -d "$own/projects/-work/$id/tool-results" ] && [ ! -e "$own.new" ]'
+rm -rf "$own"
 check 'settings with an env block are not copied' 'grep -q "was not copied: it has an env block" <<<"$("$cli" add Code --claude-code synced)" && [ ! -e "$own/settings.json" ] && [ "$(snapshot)" = "$before" ]'
 bash -c 'sleep 30; :' _ "--user-data-dir=$XDG_CONFIG_HOME/Claude-Code" & running=$!
 sleep 0.3

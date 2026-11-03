@@ -236,8 +236,11 @@ function Switch-ClaudeCode([string]$dataDir, [string]$mode) {
         return
     }
     if (-not (Test-Path -LiteralPath $dir)) {
-        if (Test-Path -LiteralPath "$dir.off") { Rename-Item -LiteralPath "$dir.off" -NewName '.claude' } else { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-        $count = Copy-CodeSession $dataDir $dir
+        # Filled aside and renamed last: a copy that stops halfway leaves the profile shared, and add goes on from there.
+        $work = if (Test-Path -LiteralPath "$dir.off") { "$dir.off" } else { "$dir.new" }
+        New-Item -ItemType Directory -Path $work -Force | Out-Null
+        $count = Copy-CodeSession $dataDir $work
+        Rename-Item -LiteralPath $work -NewName '.claude'
         if ($count) { Say "  Copied $count Claude Code session(s) of this profile from ~/.claude, which stays as it is." }
     }
     if ($mode -eq 'own') {
