@@ -28,7 +28,8 @@ function Fail([string]$text, [int]$code = 1) { [Console]::Error.WriteLine($text)
 $Usage = @"
 multi-claude $Version - several Claude Desktop accounts side by side
 
-  multi-claude add <name> [--color <color>]   new profile: own sign-in, icon and taskbar button
+  multi-claude add <name> [--color <color>] [--claude-code <mode>]
+                                              new profile, or change one: own sign-in, icon and taskbar button
   multi-claude list                           installed profiles
   multi-claude open <name>                    open a profile (what its shortcut runs)
   multi-claude remove <name>                  remove a profile (its sign-in data is kept)
@@ -36,13 +37,16 @@ multi-claude $Version - several Claude Desktop accounts side by side
   multi-claude uninstall                      remove multi-claude and every profile shortcut
 
 Colors: $($Palette.Keys -join ', ') or a hex value like C0392B
+Claude Code modes: own (new profiles: its own settings and sessions), synced (own, with skills,
+agents, commands, output styles and CLAUDE.md from ~/.claude) or shared (~/.claude itself)
 "@
 
 # --- arguments ---------------------------------------------------------------------------------------
-$Command = $null; $Name = $null; $Color = 'green'; $Preview = $null; $SelfTest = $false
+$Command = $null; $Name = $null; $Color = 'green'; $ClaudeCode = $null; $Preview = $null; $SelfTest = $false
 for ($i = 0; $i -lt $args.Count; $i++) {
     switch -Regex ([string]$args[$i]) {
         '^(-c|--color)$' { if ($i + 1 -ge $args.Count) { Fail '--color needs a value.' 64 }; $Color = [string]$args[++$i]; break }
+        '^--claude-code$' { if ($i + 1 -ge $args.Count) { Fail '--claude-code needs a value.' 64 }; $ClaudeCode = [string]$args[++$i]; break }
         '^--preview$'    { if ($i + 1 -ge $args.Count) { Fail '--preview needs a folder.' 64 }; $Preview = [string]$args[++$i]; break }
         '^--selftest$'   { $SelfTest = $true; break }
         '^(-h|--help)$'  { $Command = 'help'; break }
@@ -146,6 +150,129 @@ function Move-Folder([string]$from, [string]$to) {
     Rename-Item -LiteralPath $partial -NewName (Split-Path $to -Leaf)
     Clear-Tree $from
 }
+# --- Claude Code -------------------------------------------------------------------------------------
+# A profile with a .claude folder in its data folder runs its Code tab on it (CLAUDE_CONFIG_DIR);
+# without one it shares ~/.claude, as every profile did before. The folder is the only record of the
+# choice, so it survives `remove` and goes with the data folder. Functions take folders, for the tests.
+$SharedCode = Join-Path $env:USERPROFILE '.claude'
+$Synced     = 'skills', 'agents', 'commands', 'output-styles'
+$Stub       = '@~/.claude/CLAUDE.md'
+function Get-CodeDir([string]$n) { Join-Path (Get-DataDir $n) '.claude' }
+
+# A junction we made: it points at the same name in ~/.claude (even once that is gone).
+function Test-CodeLink([string]$dir, [string]$n) {
+    $item = Get-Item -LiteralPath (Join-Path $dir $n) -Force -ErrorAction SilentlyContinue
+    [bool]($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -and
+        ([string]@($item.Target)[0]).TrimEnd('\') -eq (Join-Path $SharedCode $n))
+}
+function Test-CodeStub([string]$dir) {
+    $file = Join-Path $dir 'CLAUDE.md'
+    (Test-Path -LiteralPath $file -PathType Leaf) -and [IO.File]::ReadAllText($file).TrimEnd("`r", "`n") -ceq $Stub
+}
+function Get-CodeMode([string]$dir) {
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) { return 'shared' }
+    if (@($Synced | Where-Object { Test-CodeLink $dir $_ }) -or (Test-CodeStub $dir)) { 'synced' } else { 'own' }
+}
+# Settings that can carry a key or a token (an env block, a credential helper) are never copied.
+# Only key names are matched, never values.
+function Test-CodeSecret([string]$file) {
+    [IO.File]::ReadAllText($file) -cmatch '"(env|apiKeyHelper|awsAuthRefresh|awsCredentialExport|otelHeadersHelper)"\s*:'
+}
+# The mode `add` gives a profile: the one asked for, the one it has, or own for a new profile.
+function Get-WantedCode([string]$n, [string]$asked) {
+    if (-not $asked) { if (Test-Path -LiteralPath (Find-DataDir $n)) { return Get-CodeMode (Get-CodeDir $n) } else { return 'own' } }
+    if ($asked -notin 'own', 'synced', 'shared') { Fail "Unknown Claude Code mode '$asked'. Use own, synced or shared." 64 }
+    $asked.ToLower()
+}
+# Why the profile can't move to $mode now, if it can't: `add` checks before it changes anything.
+function Get-CodeChangeProblem([string]$n, [string]$mode) {
+    $dir = Get-CodeDir $n; $now = Get-CodeMode $dir
+    if ($mode -eq $now -or ($mode -ne 'shared' -and $now -ne 'shared')) { return }
+    if (Get-ClaudeMainProcess | Where-Object { (Get-ProfileOf $_) -eq $n }) { return "Quit Claude $n first: its Claude Code mode can't change while it runs." }
+    if ($mode -eq 'shared' -and (Test-Path -LiteralPath "$dir.off")) { return "$dir.off already exists: move it aside first." }
+    if ($mode -ne 'shared' -and (Find-DataDir $n) -ne (Get-DataDir $n)) { return "Open Claude $n once first: its data moves out of AppData, then its Claude Code mode can change." }
+    if ($dir.StartsWith('\\')) { return "Claude Code can't use a folder on a network share: $dir" }
+}
+# This profile's Claude Code sessions, from Claude's own list of them. Ids name files, so only UUIDs.
+function Get-CodeSessionId([string]$dataDir) {
+    @(Get-ChildItem -LiteralPath (Join-Path $dataDir 'claude-code-sessions') -Recurse -File -Filter 'local_*.json' -Force -ErrorAction SilentlyContinue |
+        ForEach-Object { if ([IO.File]::ReadAllText($_.FullName) -match '"cliSessionId"\s*:\s*"([^"]*)"') { $Matches[1] } } |
+        Where-Object { $_ -match '^[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$' } | Sort-Object -Unique)
+}
+# Copies $from to $to unless $to is there already; an interrupted copy never stays half done.
+function Copy-New([string]$from, [string]$to) {
+    if (-not (Test-Path -LiteralPath $from) -or (Test-Path -LiteralPath $to)) { return $false }
+    $partial = "$to.partial"
+    New-Item -ItemType Directory -Path (Split-Path $to) -Force | Out-Null
+    if (Test-Path -LiteralPath $partial -PathType Container) { Clear-Tree $partial } elseif (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Force }
+    Copy-Item -LiteralPath $from -Destination $partial -Recurse -Force
+    Rename-Item -LiteralPath $partial -NewName (Split-Path $to -Leaf)
+    $true
+}
+# Copies the profile's sessions (transcript, its folder, file history) from ~/.claude into $dir,
+# leaving ~/.claude untouched. Returns how many transcripts it copied.
+function Copy-CodeSession([string]$dataDir, [string]$dir) {
+    $count = 0
+    $projects = @(Get-ChildItem -LiteralPath (Join-Path $SharedCode 'projects') -Directory -Force -ErrorAction SilentlyContinue)
+    foreach ($id in Get-CodeSessionId $dataDir) {
+        foreach ($project in $projects) {
+            $file = Join-Path $project.FullName "$id.jsonl"
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
+            if (Copy-New $file (Join-Path $dir "projects\$($project.Name)\$id.jsonl")) { $count++ }
+            Copy-New (Join-Path $project.FullName $id) (Join-Path $dir "projects\$($project.Name)\$id") | Out-Null
+        }
+        Copy-New (Join-Path $SharedCode "file-history\$id") (Join-Path $dir "file-history\$id") | Out-Null
+    }
+    $count
+}
+# Puts a profile (its data folder) on $mode and says what changed. Get-CodeChangeProblem ran first.
+function Switch-ClaudeCode([string]$dataDir, [string]$mode) {
+    $dir = Join-Path $dataDir '.claude'
+    if ($mode -eq 'shared') {
+        if (Test-Path -LiteralPath $dir) {
+            Rename-Item -LiteralPath $dir -NewName '.claude.off'
+            Say "  Claude Code: shares ~/.claude again. Its own folder is kept as $dir.off; --claude-code own brings it back."
+        } else { Say '  Claude Code: shares ~/.claude with the regular Claude (--claude-code own gives it its own).' }
+        return
+    }
+    if (-not (Test-Path -LiteralPath $dir)) {
+        if (Test-Path -LiteralPath "$dir.off") { Rename-Item -LiteralPath "$dir.off" -NewName '.claude' } else { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        $count = Copy-CodeSession $dataDir $dir
+        if ($count) { Say "  Copied $count Claude Code session(s) of this profile from ~/.claude, which stays as it is." }
+    }
+    if ($mode -eq 'own') {
+        foreach ($n in $Synced) {   # rd removes the junction itself, never what it points to
+            if (Test-CodeLink $dir $n) { & (Join-Path $env:windir 'System32\cmd.exe') /d /c ('rd "{0}"' -f (Join-Path $dir $n)) }
+        }
+        if (Test-CodeStub $dir) { Remove-Item -LiteralPath (Join-Path $dir 'CLAUDE.md') -Force }
+        Say "  Claude Code: its own settings and sessions, in $dir."
+        return
+    }
+    # synced: what the profile has itself always wins; nothing is ever created in ~/.claude.
+    $settings = Join-Path $SharedCode 'settings.json'
+    if (-not (Test-Path -LiteralPath (Join-Path $dir 'settings.json')) -and (Test-Path -LiteralPath $settings -PathType Leaf)) {
+        if (Test-CodeSecret $settings) { Say '  ~/.claude/settings.json was not copied: it has an env block or a credential helper. Copy what you need by hand.' }
+        else {
+            Copy-Item -LiteralPath $settings -Destination (Join-Path $dir 'settings.json')
+            Say '  Copied ~/.claude/settings.json once; from now on this profile keeps its own.'
+        }
+    }
+    $list = @(foreach ($n in $Synced) {
+        $link = Join-Path $dir $n; $from = Join-Path $SharedCode $n
+        if ((Test-Path -LiteralPath $from -PathType Container) -and -not (Get-Item -LiteralPath $link -Force -ErrorAction SilentlyContinue)) {
+            New-Item -ItemType Junction -Path $link -Target $from | Out-Null
+        }
+        if (Test-CodeLink $dir $n) { $n }
+    })
+    $memory = Join-Path $dir 'CLAUDE.md'
+    if ((Test-Path -LiteralPath (Join-Path $SharedCode 'CLAUDE.md') -PathType Leaf) -and -not (Test-Path -LiteralPath $memory)) {
+        [IO.File]::WriteAllText($memory, "$Stub`n")
+    }
+    if (Test-CodeStub $dir) { $list += 'CLAUDE.md' }
+    $shared = if ($list) { $list -join ', ' } else { 'nothing to link yet, run add again later' }
+    Say "  Claude Code: its own settings and sessions, in $dir; from ~/.claude: $shared."
+}
+
 function Get-Shortcut([string]$n)   { Join-Path ([Environment]::GetFolderPath('Programs')) "Claude $n.lnk" }
 function Get-ClaudePackage {
     if (-not $script:ClaudePackage) { $script:ClaudePackage = Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue | Select-Object -First 1 }
@@ -262,6 +389,7 @@ function Get-OpenArgument([string]$n) {
 # --- commands ----------------------------------------------------------------------------------------
 function Invoke-Add {
     Assert-Name -New
+    $code = Get-WantedCode $Name $ClaudeCode
     $hex = if ($Palette.Contains($Color.ToLower())) { $Palette[$Color.ToLower()] } else { $Color.TrimStart('#') }
     if ($hex -notmatch '^[0-9A-Fa-f]{6}$') { Fail "Unknown color '$Color'. Use $($Palette.Keys -join ', ') or a hex value like C0392B." 64 }
     $package = Get-ClaudePackage
@@ -269,7 +397,10 @@ function Invoke-Add {
     $logo = Join-Path $package.InstallLocation 'Assets\Square44x44Logo.targetsize-256_altform-unplated.png'
     if (-not (Test-Path $logo)) { Fail "Claude's logo was not found in its package: $logo" }
     Import-Interop
-    if (-not $Preview) { Assert-NotPackaged }
+    if (-not $Preview) {
+        Assert-NotPackaged
+        $problem = Get-CodeChangeProblem $Name $code; if ($problem) { Fail $problem }
+    }
 
     $dir      = if ($Preview) { Join-Path $Preview $Name } else { Get-ProfileDir $Name }
     $shortcut = if ($Preview) { Join-Path $Preview "Claude $Name.lnk" } else { Get-Shortcut $Name }
@@ -300,6 +431,7 @@ function Invoke-Add {
     Say '  To sign in by e-mail, open the link in your browser, do not let it open Claude, and ask for a'
     Say '  code to type in the profile. With single sign-on, quit every other Claude first,'
     Say '  including other profiles (also from the tray): the browser hands the login to whichever Claude is open.'
+    Switch-ClaudeCode (Get-DataDir $Name) $code
 }
 
 function Invoke-List {
@@ -309,7 +441,7 @@ function Invoke-List {
     foreach ($p in $profiles) {
         $dir = Find-DataDir $p
         $note = if ($dir -ne (Get-DataDir $p)) { '  (moves out of AppData the next time it opens)' }
-        Say ('{0,-16} {1,-8} {2}{3}' -f $p, $(if ($running -contains $p) { 'running' } else { '' }), $dir, $note)
+        Say ('{0,-16} {1,-8} {2,-7} {3}{4}' -f $p, $(if ($running -contains $p) { 'running' } else { '' }), (Get-CodeMode (Get-CodeDir $p)), $dir, $note)
     }
 }
 
@@ -368,8 +500,11 @@ function Invoke-Open {
     if (-not (Test-Path (Get-LaunchAlias))) { Write-OpenLog $NotFound; Fail $NotFound }
     $alias = Get-LaunchAlias; $inherited = $env:LOCALAPPDATA
     $env:LOCALAPPDATA = if (Test-LocalViewNeeded) { Sync-LocalView } else { $LocalAppData }
+    # Its own Claude Code folder, if it has one: Claude and the Code tab both follow the variable.
+    $codeDir = Join-Path $dataDir '.claude'
+    if (Test-Path -LiteralPath $codeDir -PathType Container) { $env:CLAUDE_CONFIG_DIR = $codeDir; Write-OpenLog "Claude Code folder: $codeDir" }
     try { Start-Process -FilePath $alias -ArgumentList ('--user-data-dir="{0}"' -f $dataDir) }
-    finally { $env:LOCALAPPDATA = $inherited }
+    finally { $env:LOCALAPPDATA = $inherited; Remove-Item -LiteralPath Env:CLAUDE_CONFIG_DIR -ErrorAction SilentlyContinue }
     $mainHost = Get-MainChromeHost; $lastLookup = Get-Date
     function Repair-Pairing {
         try { Repair-ChromePairing $mainHost } catch { Write-OpenLog "keeping Claude in Chrome paired failed: $($_.Exception.Message)" }
@@ -448,6 +583,7 @@ function Invoke-Doctor {
     }
     Say ('PowerShell mode:  ' + $ExecutionContext.SessionState.LanguageMode)
     Say ('Browser pairing:  ' + (Get-ChromePairing))
+    if ($env:CLAUDE_CONFIG_DIR) { Say "CLAUDE_CONFIG_DIR: $env:CLAUDE_CONFIG_DIR here; profiles never take it (shared means ~/.claude)" }
     Import-Interop
     Say ('Package context:  ' + $(if ([MultiClaude.Package]::IsPackaged()) { 'yes - run add/remove from a regular terminal' } else { 'no' }))
     Say ''

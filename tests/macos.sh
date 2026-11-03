@@ -85,7 +85,7 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   export STUB_LOG=$tmp/stub.log
   # As the launcher calls it: without the flag, `open` only hands over to the launcher.
   stubbed() { : > "$STUB_LOG"; MULTI_CLAUDE_LAUNCHER=1 PATH="$tmp/stub:$PATH" zsh "$cli" "$@" >/dev/null 2>&1; }
-  zsh "$cli" add Run >/dev/null 2>&1
+  zsh "$cli" add Run --claude-code shared >/dev/null 2>&1
   data="$HOME/Library/Application Support/Claude-Run"
   check 'open from a terminal goes through the launcher' ': > "$STUB_LOG"; PATH="$tmp/stub:$PATH" zsh "$cli" open run >/dev/null 2>&1 && grep -qxF -- "$HOME/Applications/Claude Run.app" "$STUB_LOG"'
   check 'a launcher from before 0.1.6 still opens Claude' '/usr/libexec/PlistBuddy -c "Delete :OSAAppletStayOpen" "$HOME/Applications/Claude Run.app/Contents/Info.plist" && : > "$STUB_LOG"; PATH="$tmp/stub:$PATH" zsh "$cli" open Run >/dev/null 2>&1 && grep -qF -- "--user-data-dir=$data" "$STUB_LOG"'
@@ -109,12 +109,68 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude --user-data-dir=$data" sleep 30 ) & main=$!
   check 'a removed profile is not running for its launcher' 'exit_is 0 remove Run && ! zsh "$cli" _running Run'
   kill $main
+  check 'a new profile gets its own Claude Code' 'exit_is 0 add Fresh && [[ -d "$HOME/Library/Application Support/Claude-Fresh/.claude" ]] && grep -q "^Fresh  *own " <<<"$(zsh "$cli" list)"'
+  # open: the fake Claude writes down the environment and arguments LaunchServices gave it.
+  dump=$tmp/open.dump
+  mkdir -p "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS"
+  printf '#!/bin/sh\n{ env; for a in "$@"; do echo "ARG $a"; done; } > %s.part && mv %s.part %s\n' "$dump" "$dump" "$dump" > "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude"
+  chmod +x "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude"
+  /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string Claude" -c "Add :CFBundlePackageType string APPL" "$MULTI_CLAUDE_CLAUDE_APP/Contents/Info.plist"
+  opened() {
+    rm -f "$dump"; TMPDIR=$tmp MULTI_CLAUDE_LAUNCHER=1 CLAUDE_CONFIG_DIR=/inherited CLAUDECODE=1 zsh "$cli" open "$1" || { print "       (open exited $?)"; return 1; }
+    for _ in {1..150}; do [[ -f $dump ]] && return 0; sleep 0.1; done
+    print '       (the fake Claude never ran)'; pgrep -fl Claude-Fresh; return 1
+  }
+  fresh="$HOME/Library/Application Support/Claude-Fresh"
+  check 'open --env runs Code on the own folder' 'opened Fresh && grep -qx "CLAUDE_CONFIG_DIR=$fresh/.claude" "$dump" && grep -qx "ARG --user-data-dir=$fresh" "$dump" && ! grep -q "^CLAUDECODE=" "$dump" || { cat "$dump" 2>/dev/null; false; }'
+  check 'add switches it to shared'             'out=$(zsh "$cli" add Fresh --claude-code shared 2>&1) || { print -r -- "$out"; false; } && [[ ! -e $fresh/.claude ]]'
+  check 'open leaves a shared profile alone'    'opened Fresh && ! grep -q "^CLAUDE_CONFIG_DIR=" "$dump" || { cat "$dump" 2>/dev/null; false; }'
+  for lock in $tmp/multi-claude-*.lock(N); do [[ -f $lock/pid ]] && kill "$(<$lock/pid)" 2>/dev/null; done
+  exit_is 0 remove Fresh
   mkdir -p "$HOME/.local/bin"; cp "$cli" "$HOME/.local/bin/multi-claude"
   check 'uninstall removes profiles only'     'exit_is 0 add Two && exit_is 0 uninstall && [[ ! -e "$HOME/Applications/Claude Two.app" && -d $other ]]'
   check 'uninstall leaves a real ~/.local/bin/multi-claude alone' '[[ -f $HOME/.local/bin/multi-claude && ! -L $HOME/.local/bin/multi-claude ]]'
 else
   print '  skip add with a fake Claude.app (needs macOS)'
 fi
+
+# Claude Code modes, through add's last step (all of add needs macOS tools).
+support="$HOME/Library/Application Support"
+shared=$HOME/.claude; data="$support/Claude-Code"; own=$data/.claude
+id=0b6f6a52-1d3a-4d8e-9a43-6b2a0a8f5c11
+mkdir -p "$shared/skills/mine" "$shared/agents" "$shared/projects/-work/$id/tool-results" "$shared/file-history/$id" "$data/claude-code-sessions/acct/org"
+print '{"model": "opus"}' > "$shared/settings.json"; print 'my rules' > "$shared/CLAUDE.md"
+print transcript > "$shared/projects/-work/$id.jsonl"; print other > "$shared/projects/-work/other.jsonl"
+print secret > "$shared/.credentials.json"
+printf '{"sessionId":"local_1","cliSessionId":"%s"}' "$id" > "$data/claude-code-sessions/acct/org/local_1.json"
+printf '{"cliSessionId": "../../x"}' > "$data/claude-code-sessions/acct/org/local_2.json"
+snapshot() { (cd "$HOME" && find .claude | sort && find .claude -type f | sort | xargs cat) | cksum; }
+before=$(snapshot)
+code() { zsh "$cli" _claude-code Code "$@"; }
+check 'an existing profile keeps sharing ~/.claude' 'grep -q "shares ~/.claude with the regular Claude" <<<"$(code)" && [[ ! -e $own ]]'
+check 'unknown Claude Code mode exits 64'      'zsh "$cli" _claude-code Code --claude-code banana >/dev/null 2>&1; [[ $? -eq 64 ]] && grep -qx "Unknown Claude Code mode '"'banana'"'. Use own, synced or shared." <<<"$(code --claude-code banana 2>&1)"'
+check 'missing Claude Code mode exits 64'      'exit_is 64 add Code --claude-code'
+check 'synced links the customizations'        'code --claude-code Synced >/dev/null && [[ $(readlink "$own/skills") == $shared/skills && $(readlink "$own/agents") == $shared/agents && ! -e $own/commands ]]'
+check 'CLAUDE.md imports the shared one'       '[[ $(<$own/CLAUDE.md) == "@~/.claude/CLAUDE.md" ]]'
+check 'settings.json is copied, not linked'    '[[ -f $own/settings.json && ! -L $own/settings.json ]] && cmp -s "$own/settings.json" "$shared/settings.json"'
+check 'sign-ins stay behind'                   '[[ ! -e $own/.credentials.json && ! -e $own/.claude.json ]]'
+check "the profile's sessions are copied"      '[[ $(<$own/projects/-work/$id.jsonl) == transcript && -d $own/projects/-work/$id/tool-results && -d $own/file-history/$id ]]'
+check 'other sessions and bad ids are not'     '[[ ! -e $own/projects/-work/other.jsonl && ! -e $support/x && ! -e $own/x ]]'
+check 'the shared ~/.claude stays as it was'   '[[ $(snapshot) == $before ]]'
+print '{"theme": "mine"}' > "$own/settings.json"; print changed > "$own/projects/-work/$id.jsonl"
+check 'running it again keeps what the profile has' 'code --claude-code synced >/dev/null && grep -q mine "$own/settings.json" && [[ $(<$own/projects/-work/$id.jsonl) == changed ]]'
+check 'own drops only the links'               'code --claude-code own >/dev/null && [[ ! -e $own/skills && ! -e $own/CLAUDE.md && -d $shared/skills/mine && $(<$shared/CLAUDE.md) == "my rules" ]]'
+mkdir -p "$own/skills/profile-only"
+check "synced keeps the profile's own folders" 'code --claude-code synced >/dev/null && [[ ! -L $own/skills && -d $own/skills/profile-only && -L $own/agents ]]'
+check 'shared parks the folder'                'code --claude-code shared >/dev/null && [[ ! -e $own && -d $own.off/projects ]]'
+check 'own brings it back'                     'code --claude-code own >/dev/null && [[ $(<$own/projects/-work/$id.jsonl) == changed && ! -e $own.off ]]'
+rm -rf "$own"; print '{"env": {"ANTHROPIC_API_KEY": "x"}}' > "$shared/settings.json"
+check 'settings with an env block are not copied' 'grep -q "was not copied: it has an env block" <<<"$(code --claude-code synced)" && [[ ! -e $own/settings.json ]]'
+zsh -c 'sleep 30; :' _ "--user-data-dir=$data" & running=$!
+sleep 0.3
+check 'the mode does not change while it runs' 'code --claude-code shared >/dev/null 2>&1; [[ $? -eq 1 && -d $own ]] && grep -q "^Quit Claude Code first" <<<"$(code --claude-code shared 2>&1)"'
+kill $running 2>/dev/null; wait $running 2>/dev/null
+check 'doctor names an inherited CLAUDE_CONFIG_DIR' 'grep -q "^CLAUDE_CONFIG_DIR: /x here; profiles never take it" <<<"$(CLAUDE_CONFIG_DIR=/x zsh "$cli" doctor)"'
 
 (( failed == 0 )) && print 'all tests passed'
 exit $failed

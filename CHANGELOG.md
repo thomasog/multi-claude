@@ -6,6 +6,17 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Claude Code per profile: `add <name> --claude-code own|synced|shared`. `own`, the default for new
+  profiles, gives the profile's Code tab its own Claude Code folder (`.claude` in its data folder,
+  through `CLAUDE_CONFIG_DIR`), so two accounts no longer overwrite each other's account record,
+  caches, transcripts and memory in `~/.claude`. `synced` also links skills, agents, commands and
+  output styles to `~/.claude`, imports its `CLAUDE.md` and copies `settings.json` once (never one
+  with an `env` block or a credential helper). `shared` keeps `~/.claude`; existing profiles stay on
+  it until changed. Switching copies the profile's own sessions from `~/.claude` and never changes
+  it. `list` shows each profile's mode.
+
 ## [0.1.6] - 2026-11-03
 
 ### Fixed

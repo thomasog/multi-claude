@@ -15,6 +15,8 @@ On macOS Claude holds no such lock, so a second start would run it twice on the 
 | macOS   | `~/Library/Application Support/Claude-<name>` | `~/Applications/Claude <name>.app`                        |
 | Linux   | `~/.config/Claude-<name>`                     | `~/.local/share/applications/multi-claude-<name in lowercase>.desktop` |
 
+A profile's own Claude Code folder, if it has one, is `.claude` inside its data folder.
+
 Nothing inside Claude changes, so app updates apply to every profile.
 
 On Windows the profile data stays out of AppData on purpose. The Store app runs in a package that
@@ -88,13 +90,64 @@ in the browser, do not let it open Claude, and ask for a code to type in the pro
 every Claude open. With single sign-on, quit every other Claude first, including other profiles
 (on Windows, also from the tray). After that, each profile keeps its own login.
 
+## Claude Code
+
+The Code tab runs Claude Code, which keeps its settings, account state (`.claude.json`), sessions
+and memory in one folder, `~/.claude` unless `CLAUDE_CONFIG_DIR` names another one. Claude Desktop
+follows the same variable for the files it writes there. With every profile on `~/.claude`, two
+accounts overwrite each other's account record and caches, and their transcripts and project memory
+end up in one `projects` folder. So each profile picks one of three modes, with
+`multi-claude add <name> --claude-code <mode>`:
+
+| Mode     | The profile's Code tab uses                                                         |
+|----------|-------------------------------------------------------------------------------------|
+| `own`    | `.claude` in the profile's data folder: its own settings, sessions and memory       |
+| `synced` | the same, with `skills`, `agents`, `commands` and `output-styles` linked to `~/.claude`, a `CLAUDE.md` that imports `~/.claude/CLAUDE.md`, and a one-time copy of `~/.claude/settings.json` |
+| `shared` | `~/.claude` itself, as every profile did before                                     |
+
+- **The folder is the setting.** A profile with `.claude` in its data folder is `own` or `synced`
+  (`synced` while it holds one of multi-claude's links or its `CLAUDE.md` import); without one it is
+  `shared`. `open` starts Claude with `CLAUDE_CONFIG_DIR` pointing there, so Claude and Claude Code
+  agree (on macOS through `open --env`). Nothing else records the choice, so it survives `remove` and `uninstall` and goes when
+  the data folder is deleted.
+- **Defaults.** A new profile, one without a data folder yet, gets `own`. A profile that already
+  has data keeps its mode when `add` runs again without `--claude-code`, so existing profiles stay
+  `shared` until you change them.
+- **Links, not copies.** `skills`, `agents`, `commands` and `output-styles` are symbolic links
+  (junctions on Windows, which need no Developer Mode), so a skill added in either place is there in
+  both. `add` makes a link only where the profile has nothing of that name and `~/.claude` has the
+  folder; what the profile has itself always wins, and nothing is ever created in `~/.claude`.
+  `CLAUDE.md` is a one-line `@~/.claude/CLAUDE.md` import, Claude Code's own way to include a file.
+- **settings.json is copied once**, when the profile has none: a link would need Developer Mode on
+  Windows. After that the copy is the profile's own and is never refreshed. It is not copied at all
+  if it has an `env` block or a credential helper (`apiKeyHelper` and the like), which can hold keys
+  and tokens. Plugins named in it are not installed in the profile.
+- **Never copied or linked:** `.credentials.json`, `.claude.json` (the account record, user-scope MCP
+  servers), sessions of other profiles, plugins, caches.
+- **Switching** keeps everything. `shared` renames the profile's folder to `.claude.off`; `own` or
+  `synced` renames it back. Moving to `own` or `synced` from `shared` also copies the profile's own
+  sessions from `~/.claude`: Claude Desktop lists each Code session with its `cliSessionId`, which
+  names the transcript, so multi-claude copies exactly those transcripts, their session folders and
+  their file history, never overwriting and never changing `~/.claude`. Nothing is copied back to
+  `~/.claude`: sessions from an own period come back with the folder. A change to or from `shared`
+  needs the profile closed; on Windows, a profile made before 0.1.3 must open once first, so its data
+  moves out of AppData.
+- **Don't set `CLAUDE_CONFIG_DIR` yourself** in a profile's "Environment variables" (Code tab, Edit
+  local environment). Claude Code would follow it, but Claude Desktop's own writes would not, which
+  splits the account record across two folders. A `CLAUDE_CONFIG_DIR` in your own environment is
+  removed when a profile starts, as are all `CLAUDE*` and `ANTHROPIC*` variables; `doctor` mentions
+  it.
+
+To use a profile's Claude Code in a terminal, set the variable yourself, e.g. on macOS and Linux
+`CLAUDE_CONFIG_DIR="$HOME/.config/Claude-Work/.claude" claude`. That terminal signs in on its own.
+
 ## What profiles share
 
 Each profile has its own account, conversations, list of Claude Code sessions, scheduled tasks, MCP
-configuration and app settings. They share what exists once per user: the `~/.claude` folder
-(Claude Code settings, skills, memory and session transcripts), global keyboard shortcuts, the
-browser's pairing with Claude in Chrome, and on Windows the packaged app's startup entry. The README
-lists how to keep your regular Claude in charge of these.
+configuration and app settings, and, unless its Claude Code mode is `shared`, its own Claude Code
+folder. They share what exists once per user: global keyboard shortcuts, the browser's pairing with
+Claude in Chrome, on Windows the packaged app's startup entry, and `~/.claude` for profiles whose
+Claude Code is `shared`. The README lists how to keep your regular Claude in charge of these.
 
 Browsers find Claude through one native-messaging entry per user
 (`com.anthropic.claude_browser_extension`): a registry key on Windows, a JSON manifest in each

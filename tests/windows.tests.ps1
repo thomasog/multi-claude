@@ -90,6 +90,8 @@ Test 'missing color exits 64'       { Assert ((Invoke-Cli add $unused --preview 
 Test 'extra argument exits 64'      { Assert ((Invoke-Cli add $unused extra) -eq 64) 'expected 64' }
 Test 'unknown option exits 64'      { Assert ((Invoke-Cli add $unused --bogus) -eq 64) 'expected 64' }
 Test 'version works in any position' { Assert ((Invoke-Cli add -v) -eq 0) 'expected 0' }
+Test 'unknown Claude Code mode exits 64' { Assert ((Invoke-Cli add $unused --claude-code banana --preview $tmp) -eq 64) 'expected 64' }
+Test 'missing Claude Code mode exits 64' { Assert ((Invoke-Cli add $unused --preview $tmp --claude-code) -eq 64) 'expected 64' }
 Test 'removing an unknown profile exits 1' { Assert ((Invoke-Cli remove $unused) -eq 1) 'expected 1' }
 Test 'package detection answers'    { Assert ([MultiClaude.Package]::IsPackaged() -is [bool]) 'expected a boolean' }
 Test 'ignores LOCALAPPDATA (a profile terminal sees a view or \\?\ form)' {
@@ -209,6 +211,123 @@ Test 'data moves to another drive letter by copying' {
         Assert (-not (Test-Path $from)) 'original not deleted'
         Assert (-not (Test-Path "$letter\to.partial")) 'partial copy left behind'
     } finally { & subst.exe $letter /d }
+}
+
+# Claude Code: a fake ~/.claude and a profile's data folder; junctions are real.
+function Initialize-CodeFixture {
+    $base = Join-Path $tmp ('code-' + [guid]::NewGuid()); $id = '0b6f6a52-1d3a-4d8e-9a43-6b2a0a8f5c11'
+    $shared = Join-Path $base 'shared'; $data = Join-Path $base 'data\Claude-Code'
+    foreach ($d in 'skills\mine', 'agents', "projects\-work\$id\tool-results", "file-history\$id") { New-Item -ItemType Directory (Join-Path $shared $d) -Force | Out-Null }
+    New-Item -ItemType Directory (Join-Path $data 'claude-code-sessions\acct\org') -Force | Out-Null
+    Set-Content (Join-Path $shared 'settings.json') '{"model": "opus"}'; Set-Content (Join-Path $shared 'CLAUDE.md') 'my rules'
+    Set-Content (Join-Path $shared "projects\-work\$id.jsonl") 'transcript'; Set-Content (Join-Path $shared 'projects\-work\other.jsonl') 'other'
+    Set-Content (Join-Path $shared '.credentials.json') 'secret'
+    Set-Content (Join-Path $data 'claude-code-sessions\acct\org\local_1.json') ('{"sessionId":"local_1","cliSessionId":"' + $id + '"}')
+    Set-Content (Join-Path $data 'claude-code-sessions\acct\org\local_2.json') '{"cliSessionId": "..\\..\\x"}'
+    [pscustomobject]@{ Shared = $shared; Data = $data; Own = Join-Path $data '.claude'; Id = $id }
+}
+# Every file under ~/.claude with its content, to prove nothing there changed.
+function Get-TreeText([string]$dir) {
+    (Get-ChildItem -LiteralPath $dir -Recurse -Force | Sort-Object FullName | ForEach-Object {
+        $_.FullName; if (-not $_.PSIsContainer) { [IO.File]::ReadAllText($_.FullName) }
+    }) -join "`n"
+}
+Test 'Claude Code: synced links folders, imports CLAUDE.md, copies settings and sessions' {
+    $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared; $before = Get-TreeText $f.Shared
+    Assert ((Get-CodeMode $f.Own) -eq 'shared') 'no folder should read as shared'
+    Switch-ClaudeCode $f.Data 'synced' 6>$null
+    Assert ((Get-CodeMode $f.Own) -eq 'synced') "mode $(Get-CodeMode $f.Own)"
+    foreach ($n in 'skills', 'agents') {
+        Assert (Test-CodeLink $f.Own $n) "$n is not our junction"
+        Assert ((Get-Item -LiteralPath (Join-Path $f.Own $n) -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) "$n is not a junction"
+    }
+    Assert (Test-Path (Join-Path $f.Own 'skills\mine')) 'the junction does not resolve'
+    Assert (-not (Test-Path (Join-Path $f.Own 'commands'))) 'commands has no source and must not be linked'
+    Assert ([IO.File]::ReadAllText((Join-Path $f.Own 'CLAUDE.md')) -eq "@~/.claude/CLAUDE.md`n") 'CLAUDE.md is not the import'
+    $settings = Get-Item -LiteralPath (Join-Path $f.Own 'settings.json') -Force
+    Assert (-not ($settings.Attributes -band [IO.FileAttributes]::ReparsePoint)) 'settings.json must be a copy'
+    Assert ((Get-Content $settings.FullName) -eq '{"model": "opus"}') 'settings.json content'
+    Assert ((Get-Content (Join-Path $f.Own "projects\-work\$($f.Id).jsonl")) -eq 'transcript') 'transcript not copied'
+    Assert (Test-Path (Join-Path $f.Own "projects\-work\$($f.Id)\tool-results")) 'session folder not copied'
+    Assert (Test-Path (Join-Path $f.Own "file-history\$($f.Id)")) 'file history not copied'
+    Assert (-not (Test-Path (Join-Path $f.Own 'projects\-work\other.jsonl'))) 'another session was copied'
+    Assert (-not (Test-Path (Join-Path $f.Own '.credentials.json'))) 'credentials were copied'
+    Assert ((Get-TreeText $f.Shared) -eq $before) '~/.claude changed'
+}
+Test 'Claude Code: the profile''s own files win when add runs again' {
+    $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared
+    Switch-ClaudeCode $f.Data 'synced' 6>$null
+    Set-Content (Join-Path $f.Own 'settings.json') '{"theme": "mine"}'; Set-Content (Join-Path $f.Own "projects\-work\$($f.Id).jsonl") 'changed'
+    Switch-ClaudeCode $f.Data 'synced' 6>$null
+    Assert ((Get-Content (Join-Path $f.Own 'settings.json')) -eq '{"theme": "mine"}') 'settings.json was overwritten'
+    Assert ((Get-Content (Join-Path $f.Own "projects\-work\$($f.Id).jsonl")) -eq 'changed') 'transcript was overwritten'
+}
+Test 'Claude Code: own removes only the junctions, never what they point to' {
+    $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared
+    Switch-ClaudeCode $f.Data 'synced' 6>$null
+    Switch-ClaudeCode $f.Data 'own' 6>$null
+    Assert ((Get-CodeMode $f.Own) -eq 'own') "mode $(Get-CodeMode $f.Own)"
+    Assert (-not (Test-Path (Join-Path $f.Own 'skills')) -and -not (Test-Path (Join-Path $f.Own 'CLAUDE.md'))) 'links or the import are left'
+    Assert (Test-Path (Join-Path $f.Shared 'skills\mine')) 'removing the junction deleted the skills it pointed to'
+    Assert ((Get-Content (Join-Path $f.Shared 'CLAUDE.md')) -eq 'my rules') 'the shared CLAUDE.md changed'
+    Assert (Test-Path (Join-Path $f.Own 'settings.json')) 'own lost the settings copy'
+    New-Item -ItemType Directory (Join-Path $f.Own 'skills\profile-only') -Force | Out-Null
+    Switch-ClaudeCode $f.Data 'synced' 6>$null
+    Assert (Test-Path (Join-Path $f.Own 'skills\profile-only')) 'synced replaced the profile''s own skills'
+    Assert (Test-CodeLink $f.Own 'agents') 'agents not linked again'
+}
+Test 'Claude Code: a junction whose target is gone still counts as ours' {
+    $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared
+    Switch-ClaudeCode $f.Data 'synced' 6>$null
+    & cmd.exe /d /c ('rd /s /q "{0}"' -f (Join-Path $f.Shared 'agents'))
+    Assert (Test-CodeLink $f.Own 'agents') 'dangling junction not recognized'
+    Switch-ClaudeCode $f.Data 'own' 6>$null
+    Assert (-not (Get-Item -LiteralPath (Join-Path $f.Own 'agents') -Force -ErrorAction SilentlyContinue)) 'dangling junction left'
+}
+Test 'Claude Code: shared parks the folder, own brings it back' {
+    $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared
+    Switch-ClaudeCode $f.Data 'own' 6>$null
+    Set-Content (Join-Path $f.Own "projects\-work\$($f.Id).jsonl") 'changed'
+    Switch-ClaudeCode $f.Data 'shared' 6>$null
+    Assert ((Get-CodeMode $f.Own) -eq 'shared' -and (Test-Path "$($f.Own).off\projects")) 'not parked'
+    Switch-ClaudeCode $f.Data 'own' 6>$null
+    Assert ((Get-Content (Join-Path $f.Own "projects\-work\$($f.Id).jsonl")) -eq 'changed' -and -not (Test-Path "$($f.Own).off")) 'not brought back'
+}
+Test 'Claude Code: settings with an env block or a credential helper are not copied' {
+    $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared
+    foreach ($text in '{"env": {"ANTHROPIC_API_KEY": "x"}}', '{ "apiKeyHelper" : "~/key.sh" }') {
+        Set-Content (Join-Path $f.Shared 'settings.json') $text
+        Assert (Test-CodeSecret (Join-Path $f.Shared 'settings.json')) "not caught: $text"
+    }
+    Switch-ClaudeCode $f.Data 'synced' 6>$null
+    Assert (-not (Test-Path (Join-Path $f.Own 'settings.json'))) 'settings with a key were copied'
+    Set-Content (Join-Path $f.Shared 'settings.json') '{"environment": 1, "model": "opus"}'
+    Assert (-not (Test-CodeSecret (Join-Path $f.Shared 'settings.json'))) 'a key that only starts with env was caught'
+}
+Test 'Claude Code: session ids are UUIDs from the profile''s own list' {
+    $f = Initialize-CodeFixture
+    $ids = @(Get-CodeSessionId $f.Data)
+    Assert ($ids.Count -eq 1 -and $ids[0] -eq $f.Id) "ids: $($ids -join ', ')"
+    Assert (@(Get-CodeSessionId (Join-Path $tmp 'no-such-data')).Count -eq 0) 'a profile without sessions'
+}
+Test 'Claude Code: add keeps a profile''s mode, and new profiles get their own' {
+    $Root = Join-Path $tmp ('mode-' + [guid]::NewGuid()); $LocalAppData = Join-Path $Root 'local'; $script:ClaudePackage = $null
+    try {
+        Assert ((Get-WantedCode 'New') -eq 'own') 'a new profile'
+        New-Item -ItemType Directory (Get-DataDir 'Old') -Force | Out-Null
+        Assert ((Get-WantedCode 'Old') -eq 'shared') 'an existing profile without a folder'
+        New-Item -ItemType Directory (Get-CodeDir 'Old') -Force | Out-Null
+        Assert ((Get-WantedCode 'Old') -eq 'own') 'an existing profile with a folder'
+        Assert ((Get-WantedCode 'Old' 'SYNCED') -eq 'synced') 'asked for, in any case'
+        # A profile made before 0.1.3 keeps its data in AppData until it opens: no own folder before that.
+        New-Item -ItemType Directory (Join-Path $LocalAppData 'Claude-Legacy') -Force | Out-Null
+        Set-Content (Join-Path $LocalAppData 'Claude-Legacy\Local State') 'old'
+        Assert ((Get-WantedCode 'Legacy') -eq 'shared') 'legacy profile without --claude-code'
+        Assert ((Get-CodeChangeProblem 'Legacy' 'own') -match '^Open Claude Legacy once first') 'legacy profile not refused'
+        Assert ($null -eq (Get-CodeChangeProblem 'Old' 'synced')) 'own to synced needs no check'
+        Rename-Item (Get-CodeDir 'Old') '.claude.off'; New-Item -ItemType Directory (Get-CodeDir 'Old') | Out-Null
+        Assert ((Get-CodeChangeProblem 'Old' 'shared') -match 'already exists') 'a parked folder in the way not refused'
+    } finally { $script:ClaudePackage = $null }
 }
 
 if (Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue) {

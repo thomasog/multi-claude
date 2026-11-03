@@ -18,14 +18,17 @@ COLORS=(green blue purple red teal pink gray)
 
 USAGE="multi-claude $VERSION - several Claude Desktop accounts side by side
 
-  multi-claude add <name> [--color <color>]   new profile: own sign-in and colored launcher
+  multi-claude add <name> [--color <color>] [--claude-code <mode>]
+                                              new profile, or change one: own sign-in and colored launcher
   multi-claude list                           installed profiles
   multi-claude open <name>                    open a profile
   multi-claude remove <name>                  remove a profile (its sign-in data is kept)
   multi-claude doctor [--selftest]            check this Mac
   multi-claude uninstall                      remove multi-claude and every profile launcher
 
-Colors: ${(j:, :)COLORS} or a hex value like C0392B"
+Colors: ${(j:, :)COLORS} or a hex value like C0392B
+Claude Code modes: own (new profiles: its own settings and sessions), synced (own, with skills,
+agents, commands, output styles and CLAUDE.md from ~/.claude) or shared (~/.claude itself)"
 
 fail()        { print -u2 -- "$1"; exit "${2:-1}"; }
 data_dir()    { print -- "$HOME/Library/Application Support/Claude-$1"; }
@@ -40,6 +43,112 @@ check_name() {
   case ${1:u} in CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]) fail "The name '$1' is reserved by Windows." 64 ;; esac
 }
 need_claude() { [[ -d $CLAUDE_APP ]] || fail "$NOT_FOUND"; }
+
+# Claude Code: a profile with a .claude folder in its data folder runs its Code tab on it
+# (CLAUDE_CONFIG_DIR); without one it shares ~/.claude, as every profile did before. The folder is
+# the only record of the choice, so it survives `remove` and goes with the data folder.
+SHARED=$HOME/.claude
+SYNCED=(skills agents commands output-styles)
+STUB='@~/.claude/CLAUDE.md'
+code_dir()   { print -- "$(data_dir "$1")/.claude"; }
+is_link()    { [[ -L $1/$2 && $(readlink "$1/$2") == "$SHARED/$2" ]]; }   # a link we made
+is_stub()    { [[ -f $1/CLAUDE.md && ! -L $1/CLAUDE.md && $(<"$1/CLAUDE.md") == "$STUB" ]]; }
+code_mode() {
+  local dir n; dir=$(code_dir "$1")
+  [[ -d $dir ]] || { print shared; return; }
+  for n in $SYNCED; do if is_link "$dir" "$n"; then print synced; return; fi; done
+  if is_stub "$dir"; then print synced; else print own; fi
+}
+# Settings that can carry a key or a token (an env block, a credential helper) are never copied.
+# Only key names are matched, never values.
+has_secrets() { grep -qE '"(env|apiKeyHelper|awsAuthRefresh|awsCredentialExport|otelHeadersHelper)"[[:space:]]*:' "$1"; }
+
+# Fails before `add` changes anything if profile $1 can't move to mode $2 now.
+check_code() {
+  local now; now=$(code_mode "$1")
+  [[ $2 == "$now" || ( $2 != shared && $now != shared ) ]] && return 0
+  ! is_running "$1" || fail "Quit Claude $1 first: its Claude Code mode can't change while it runs."
+  [[ $2 != shared || ! -e $(code_dir "$1").off ]] || fail "$(code_dir "$1").off already exists: move it aside first."
+}
+
+# This profile's Claude Code sessions, from Claude's own list of them. Ids name files, so only UUIDs.
+session_ids() {
+  local dir; dir="$(data_dir "$1")/claude-code-sessions"
+  [[ -d $dir ]] || return 0
+  find "$dir" -type f -name 'local_*.json' -exec sed -n 's/.*"cliSessionId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' {} + |
+    grep -E '^[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$' | sort -u || true
+}
+# Copies $1 to $2 unless $2 is there already; an interrupted copy never stays half done.
+copy_new() {
+  [[ -e $1 && ! -e $2 ]] || return 1
+  mkdir -p "${2:h}" && rm -rf "$2.partial" && cp -R "$1" "$2.partial" && mv "$2.partial" "$2"
+}
+# Copies profile $1's sessions (transcript, its folder, file history) from ~/.claude into $2, which
+# stays untouched. Prints how many transcripts it copied.
+copy_sessions() {
+  local id file rel count=0
+  for id in ${(f)"$(session_ids "$1")"}; do
+    for file in "$SHARED"/projects/*/"$id.jsonl"(N); do
+      rel=${file#"$SHARED"/}
+      if copy_new "$file" "$2/$rel"; then count=$((count + 1)); fi
+      copy_new "${file%.jsonl}" "$2/${rel%.jsonl}" || true
+    done
+    copy_new "$SHARED/file-history/$id" "$2/file-history/$id" || true
+  done
+  print -- "$count"
+}
+
+# Puts profile $1 on Claude Code mode $2 and says what changed. check_code ran first.
+set_code() {
+  local name=$1 mode=$2 dir n count list=""
+  dir=$(code_dir "$name")
+  if [[ $mode == shared ]]; then
+    if [[ -d $dir ]]; then
+      mv "$dir" "$dir.off"
+      print -- "  Claude Code: shares ~/.claude again. Its own folder is kept as $dir.off; --claude-code own brings it back."
+    else
+      print -- "  Claude Code: shares ~/.claude with the regular Claude (--claude-code own gives it its own)."
+    fi
+    return
+  fi
+  if [[ ! -d $dir ]]; then
+    if [[ -d $dir.off ]]; then mv "$dir.off" "$dir"; else mkdir -p "$dir"; fi
+    count=$(copy_sessions "$name" "$dir")
+    if (( count )); then print -- "  Copied $count Claude Code session(s) of this profile from ~/.claude, which stays as it is."; fi
+  fi
+  if [[ $mode == own ]]; then
+    for n in $SYNCED; do if is_link "$dir" "$n"; then rm "$dir/$n"; fi; done   # the link, not ~/.claude
+    if is_stub "$dir"; then rm "$dir/CLAUDE.md"; fi
+    print -- "  Claude Code: its own settings and sessions, in $dir."
+    return
+  fi
+  # synced: what the profile has itself always wins; nothing is ever created in ~/.claude.
+  if [[ ! -e $dir/settings.json && -f $SHARED/settings.json ]]; then
+    if has_secrets "$SHARED/settings.json"; then
+      print -- "  ~/.claude/settings.json was not copied: it has an env block or a credential helper. Copy what you need by hand."
+    else
+      cp "$SHARED/settings.json" "$dir/settings.json"
+      print -- "  Copied ~/.claude/settings.json once; from now on this profile keeps its own."
+    fi
+  fi
+  for n in $SYNCED; do
+    if [[ -d $SHARED/$n && ! -e $dir/$n && ! -L $dir/$n ]]; then ln -s "$SHARED/$n" "$dir/$n"; fi
+    if is_link "$dir" "$n"; then list+="$n, "; fi
+  done
+  if [[ -f $SHARED/CLAUDE.md && ! -e $dir/CLAUDE.md ]]; then print -r -- "$STUB" > "$dir/CLAUDE.md"; fi
+  if is_stub "$dir"; then list+="CLAUDE.md, "; fi
+  list=${list%, }
+  print -- "  Claude Code: its own settings and sessions, in $dir; from ~/.claude: ${list:-nothing to link yet, run add again later}."
+}
+
+# The mode `add` gives profile $1: the one asked for, or the one it has, or own for a new profile.
+code_for() {
+  case ${2:l} in
+    own|synced|shared) print -- "${2:l}" ;;
+    "") if [[ -d $(data_dir "$1") ]]; then code_mode "$1"; else print own; fi ;;
+    *) fail "Unknown Claude Code mode '$2'. Use own, synced or shared." 64 ;;
+  esac
+}
 
 # Sets a string key of an Info.plist; osacompile's applets don't always carry the key, so add it then.
 plist_set() {
@@ -70,8 +179,9 @@ canonical() {
 }
 
 cmd_add() {
-  local name=$1 color=$2 hex existing
+  local name=$1 color=$2 code hex existing
   check_name "$name"
+  code=$(code_for "$name" "$3")
   hex=${color#\#}
   [[ -z $color ]] || hex=${PALETTE[${color:l}]:-$hex}   # no lookup with an empty key
   [[ $hex =~ '^[0-9A-Fa-f]{6}$' ]] || fail "Unknown color '$color'. Use ${(j:, :)COLORS} or a hex value like C0392B." 64
@@ -81,6 +191,7 @@ cmd_add() {
     fail "~/Applications/Claude $name.app exists and is not a multi-claude profile."
   fi
   need_claude
+  check_code "$name" "$code"
 
   local work; work=$(mktemp -d)
   trap "rm -rf '$work'" EXIT
@@ -132,6 +243,7 @@ cmd_add() {
   Drag it to the Dock. To sign in by e-mail, open the link in your browser, do not let it open
   Claude, and ask for a code to type in the profile. With single sign-on, quit every other Claude
   first (Cmd+Q), including other profiles: the browser hands the login to whichever Claude is open."
+  set_code "$name" "$code"
 }
 
 cmd_list() {
@@ -140,7 +252,7 @@ cmd_list() {
   local n state
   for n in $names; do
     state=""; if is_running "$n"; then state=running; fi
-    printf '%-16s %-8s %s\n' "$n" "$state" "$(data_dir "$n")"
+    printf '%-16s %-8s %-7s %s\n' "$n" "$state" "$(code_mode "$n")" "$(data_dir "$n")"
   done
 }
 
@@ -160,7 +272,10 @@ cmd_open() {
   # Claude has no single-instance lock here: a second `open -n` would run it twice on the same data.
   local pid; if pid=$(main_pid "$1"); then bring_forward "$pid"; return 0; fi
   # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to Claude.
-  local -a launch=(open -n -a "$CLAUDE_APP" --args --user-data-dir="$(data_dir "$1")")
+  # The profile's own Claude Code folder goes in by name, so the strip can't touch it.
+  local -a launch=(open -n)
+  if [[ -d $(code_dir "$1") ]]; then launch+=(--env "CLAUDE_CONFIG_DIR=$(code_dir "$1")"); fi
+  launch+=(-a "$CLAUDE_APP" --args --user-data-dir="$(data_dir "$1")")
   ( unset -m 'CLAUDE*' 'ANTHROPIC*' MULTI_CLAUDE_LAUNCHER; "${launch[@]}" )
 }
 
@@ -182,6 +297,7 @@ cmd_doctor() {
   for tool in sips iconutil osacompile osascript codesign; do
     if command -v $tool >/dev/null; then print "  $tool: ok"; else print "  $tool: missing"; fi
   done
+  if [[ -n ${CLAUDE_CONFIG_DIR:-} ]]; then print -- "CLAUDE_CONFIG_DIR: $CLAUDE_CONFIG_DIR here; profiles never take it (shared means ~/.claude)"; fi
   print
   cmd_list
 }
@@ -198,10 +314,11 @@ cmd_uninstall() {
 }
 
 # --- arguments ---------------------------------------------------------------------------------------
-cmd="" name="" color=green selftest=0
+cmd="" name="" color=green code="" selftest=0
 while (( $# )); do
   case $1 in
     -c|--color)   (( $# >= 2 )) || fail "--color needs a value." 64; color=$2; shift ;;
+    --claude-code) (( $# >= 2 )) || fail "--claude-code needs a value." 64; code=$2; shift ;;
     -h|--help)    cmd=help ;;
     -v|--version) cmd=version ;;
     --selftest)   selftest=1 ;;
@@ -215,7 +332,7 @@ while (( $# )); do
 done
 
 case ${cmd:l} in
-  add)       cmd_add "$name" "$color" ;;
+  add)       cmd_add "$name" "$color" "$code" ;;
   list)      cmd_list ;;
   open)      check_name "$name"; cmd_open "$(canonical "$name")" ;;
   remove)    check_name "$name"; cmd_remove "$(canonical "$name")" ;;
@@ -224,6 +341,7 @@ case ${cmd:l} in
   _running)  check_name "$name"; name=$(canonical "$name")             # internal: the launcher's check
              is_ours "$(launcher "$name")" && is_running "$name" ;;      # a removed profile's launcher quits
   version)   print "multi-claude $VERSION" ;;
+  _claude-code) check_name "$name"; c=$(code_for "$name" "$code"); check_code "$name" "$c"; set_code "$name" "$c" ;;   # internal: add's last step, for the tests
   help|"")   print -- "$USAGE" ;;
   *)         fail "Unknown command '$cmd'."$'\n\n'"$USAGE" 64 ;;
 esac

@@ -59,6 +59,7 @@ first.
 
 ```sh
 multi-claude add Work --color blue    # a new profile, in the Start menu, Applications or app launcher
+multi-claude add Work --claude-code synced   # its Claude Code also gets your skills and CLAUDE.md
 multi-claude list                     # your profiles
 multi-claude remove Work              # remove it; its sign-in data is kept
 multi-claude doctor                   # check this computer
@@ -93,8 +94,11 @@ restarts Claude (and closes every Claude window, profiles included). multi-claud
 open at once and never touches sign-ins: each profile signs in on its own.
 
 **Can I use Claude Code in every profile at once?**
-Yes. Each profile has its own account and its own list of sessions. All profiles share `~/.claude`:
-Claude Code settings, skills, memory and session transcripts.
+Yes. A new profile's Code tab keeps its own Claude Code folder, with its own settings, sessions and
+memory, so two accounts never write the same `~/.claude`. With `--claude-code synced` it also uses
+your skills, agents, commands, output styles and `CLAUDE.md` from `~/.claude`; with
+`--claude-code shared` it uses `~/.claude` itself, as older profiles do. Run `add` again to
+change it; [how it works](docs/how-it-works.md#claude-code).
 
 **Do profiles combine usage limits?**
 No. Each profile is simply signed in to its own account, with that account's plan and limits.
@@ -139,9 +143,9 @@ regular Claude in charge of them:
 multi-claude uninstall
 ```
 
-Your profiles' sign-in data stays in `%USERPROFILE%\.multi-claude\data` (Windows),
-`~/Library/Application Support/Claude-*` (macOS) or `~/.config/Claude-*` (Linux). Delete those
-folders to sign out for good.
+Your profiles' sign-in data, and their own Claude Code folders, stay in
+`%USERPROFILE%\.multi-claude\data` (Windows), `~/Library/Application Support/Claude-*` (macOS) or
+`~/.config/Claude-*` (Linux). Delete those folders to sign out for good.
 
 ---
 

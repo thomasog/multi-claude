@@ -77,6 +77,29 @@ add it again.
 multi-claude looks for the official desktop entry named `Claude` or `Claude Desktop`.
 `multi-claude doctor` shows what it found.
 
+**Claude Code in a profile doesn't see my skills, settings or MCP servers.**
+The profile has its own Claude Code folder (mode `own`, the default for new profiles). Run
+`multi-claude add <name> --claude-code synced` to bring in your skills, agents, commands, output
+styles and `CLAUDE.md` from `~/.claude`, and a copy of `settings.json`. `add` says if `settings.json`
+was left out because it has an `env` block or a credential helper: copy what you need into the
+profile's `.claude\settings.json` (macOS and Linux: `.claude/settings.json`) yourself. MCP servers
+added with `claude mcp add --scope user` and plugins belong to each Claude Code folder: add them
+again in the profile.
+
+**After changing a profile's Claude Code mode, a Code session is missing from its list.**
+Sessions stay in the folder they were made in. Moving to `own` or `synced` copies the profile's
+sessions from `~/.claude`; sessions made while it was `own` come back when you switch back from
+`shared`. Quit the profile before you change its mode.
+
+**A profile's Claude Code still uses `~/.claude`.**
+`multi-claude list` shows the profile's mode. Open the profile from its launcher, not from the
+regular Claude, after quitting it (on Windows, also from the tray). If you set `CLAUDE_CONFIG_DIR` in
+the profile's Code tab (Edit local environment), remove it there. On Windows,
+`%USERPROFILE%\.multi-claude\profiles\<name>\open.log` names the Claude Code folder at each start.
+
+**The first Code session in a profile asks for things again** (theme, trusting a folder).
+Its own Claude Code folder starts empty; that happens once.
+
 **Claude closed by itself while a profile was open.**
 An idle Claude can install an app update, and updating closes every Claude window. Quit the profiles
 you are not using. Account-switcher tools that restart Claude to swap its sign-in also close every
