@@ -75,8 +75,9 @@ If tagging ever fails, the window simply appears under the regular Claude button
 ## Sign-in
 
 A browser sign-in returns through a `claude://` link, and the system gives that link to whichever
-Claude is open, usually the regular one. **Sign in with a code** avoids the link entirely, so it works
-with every Claude open. With single sign-on, quit every other Claude first, including other profiles
+Claude is open, usually the regular one. An e-mail sign-in can avoid the link: open the e-mail's link
+in the browser, do not let it open Claude, and ask for a code to type in the profile. That works with
+every Claude open. With single sign-on, quit every other Claude first, including other profiles
 (on Windows, also from the tray). After that, each profile keeps its own login.
 
 ## What profiles share

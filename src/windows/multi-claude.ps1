@@ -297,7 +297,8 @@ function Invoke-Add {
     Say ''
     Say "  Claude $Name is ready." Green
     Say '  Open it from the Start menu, then right-click its taskbar button > Pin to taskbar.'
-    Say '  To sign in, choose "Sign in with a code". With single sign-on, quit every other Claude first,'
+    Say '  To sign in by e-mail, open the link in your browser, do not let it open Claude, and ask for a'
+    Say '  code to type in the profile. With single sign-on, quit every other Claude first,'
     Say '  including other profiles (also from the tray): the browser hands the login to whichever Claude is open.'
 }
 

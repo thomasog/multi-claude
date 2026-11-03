@@ -72,7 +72,8 @@ Colors: `green` (default) `blue` `purple` `red` `teal` `pink` `gray`, or any hex
 `C0392B`.
 
 > [!IMPORTANT]
-> **Signing in to a new profile:** choose **Sign in with a code**, so the login stays in that window.
+> **Signing in to a new profile:** by e-mail, open the link in your browser, do not let it open
+> Claude, and ask for a code instead. Type the code in the profile, so the login stays in that window.
 > With single sign-on, quit every other Claude first, including other profiles (on Windows, also from
 > the tray): the browser returns the login through a `claude://` link, which goes to whichever Claude
 > is open. Each profile remembers its login.
@@ -127,8 +128,9 @@ regular Claude in charge of them:
 - **Notifications** from a profile show up as "Claude", and clicking one may bring up your regular
   Claude.
 - **Cowork on Windows** runs in one profile at a time: Claude runs one Cowork VM per Windows user.
-- **macOS Dock:** the colored icon belongs to the profile's launcher. While a profile runs, the Dock
-  shows Claude's own icon, because the running app is Claude itself.
+- **macOS Dock:** a running profile shows Claude's own icon, because the running app is Claude itself.
+  Its colored launcher stays open beside it while the profile runs, so the Dock shows which profiles
+  are open, and clicking the colored icon brings that profile forward.
 
 ## Uninstall
 

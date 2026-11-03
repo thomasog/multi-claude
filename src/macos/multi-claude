@@ -98,11 +98,24 @@ cmd_add() {
   done
   iconutil -c icns "$work/icon.iconset" -o "$work/icon.icns"
 
-  # Launcher: runs `multi-claude open <name>`. Built aside, then swapped in, so a failure keeps the old one.
-  local app built plist script=${HERE//\\/\\\\}/multi-claude
+  # Launcher: runs `multi-claude open <name>` and stays open while the profile runs, so the Dock shows
+  # its colored icon as running; the running Claude itself always has Claude's icon. Built aside, then
+  # swapped in, so a failure keeps the old one.
+  local app built plist script=${HERE//\\/\\\\}/multi-claude cli
   script=${script//\"/\\\"}                                     # escaped for an AppleScript string
+  cli="quoted form of \"$script\""
   app=$(launcher "$name"); built="$work/Claude $name.app"; plist="$built/Contents/Info.plist"
-  osacompile -o "$built" -e "do shell script quoted form of \"$script\" & \" open \" & quoted form of \"$name\""
+  osacompile -s -o "$built" \
+    -e "property seen : false" -e "property waited : 0" \
+    -e "on openProfile()" \
+    -e "do shell script \"MULTI_CLAUDE_LAUNCHER=1 \" & $cli & \" open \" & quoted form of \"$name\"" \
+    -e "end openProfile" \
+    -e "on run" -e "set seen to false" -e "set waited to 0" -e "openProfile()" -e "end run" \
+    -e "on reopen" -e "openProfile()" -e "end reopen" \
+    -e "on idle" -e "try" \
+    -e "do shell script $cli & \" _running \" & quoted form of \"$name\"" -e "set seen to true" \
+    -e "on error" -e "set waited to waited + 3" -e "if seen or waited > 60 then quit" \
+    -e "end try" -e "return 3" -e "end idle"
   cp "$work/icon.icns" "$built/Contents/Resources/applet.icns"
   /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$plist" 2>/dev/null || true   # it would override applet.icns
   rm -f "$built/Contents/Resources/Assets.car"
@@ -114,9 +127,9 @@ cmd_add() {
 
   print "
   Claude $name is ready: $app
-  Drag it to the Dock. To sign in, choose \"Sign in with a code\". With single sign-on, quit every
-  other Claude first (Cmd+Q), including other profiles: the browser hands the login to whichever
-  Claude is open."
+  Drag it to the Dock. To sign in by e-mail, open the link in your browser, do not let it open
+  Claude, and ask for a code to type in the profile. With single sign-on, quit every other Claude
+  first (Cmd+Q), including other profiles: the browser hands the login to whichever Claude is open."
 }
 
 cmd_list() {
@@ -138,11 +151,13 @@ cmd_open() {
   check_name "$1"
   is_ours "$(launcher "$1")" || fail "No profile named '$1'."
   need_claude
+  # Through the launcher, which calls back here, so its icon shows in the Dock as running.
+  if [[ -z ${MULTI_CLAUDE_LAUNCHER:-} ]]; then open "$(launcher "$1")"; return; fi
   # Claude has no single-instance lock here: a second `open -n` would run it twice on the same data.
   local pid; if pid=$(main_pid "$1"); then bring_forward "$pid"; return 0; fi
   # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to Claude.
   local -a launch=(open -n -a "$CLAUDE_APP" --args --user-data-dir="$(data_dir "$1")")
-  ( unset -m 'CLAUDE*' 'ANTHROPIC*'; "${launch[@]}" )
+  ( unset -m 'CLAUDE*' 'ANTHROPIC*' MULTI_CLAUDE_LAUNCHER; "${launch[@]}" )
 }
 
 cmd_remove() {
@@ -202,6 +217,7 @@ case ${cmd:l} in
   remove)    check_name "$name"; cmd_remove "$(canonical "$name")" ;;
   doctor)    cmd_doctor; if (( selftest )); then print; print "Self-test: Windows only (taskbar tagging)."; fi ;;
   uninstall) cmd_uninstall ;;
+  _running)  check_name "$name"; is_running "$(canonical "$name")" ;;   # internal: the launcher's check
   version)   print "multi-claude $VERSION" ;;
   help|"")   print -- "$USAGE" ;;
   *)         fail "Unknown command '$cmd'."$'\n\n'"$USAGE" 64 ;;

@@ -9,7 +9,8 @@ On Windows, open a new terminal: the PATH change applies to new windows. On macO
 
 **A profile signed in to the wrong account.**
 The browser sent the `claude://` sign-in link to the other Claude. In the profile, sign out and sign in
-again with **Sign in with a code**. With single sign-on, quit every other Claude first, including other
+again by e-mail: open the link in your browser, do not let it open Claude, and type the code it gives
+you in the profile. With single sign-on, quit every other Claude first, including other
 profiles (on Windows, also from the tray).
 
 **Claude in Chrome talks to the wrong account.**
