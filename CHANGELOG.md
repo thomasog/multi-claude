@@ -26,7 +26,8 @@ All notable changes are documented here. The format follows
 ### Changed
 
 - macOS: a profile's launcher stays open while the profile runs, so the Dock shows its colored icon
-  as running and clicking it brings that profile forward. `multi-claude open` goes through it too.
+  as running and clicking it brings that profile forward, with its window back if it was closed.
+  `multi-claude open` goes through it too.
   Run `multi-claude add <name>` again to rebuild an existing launcher.
 - Releases are published only once every file is attached, so the latest-release links never point
   at a release that is still uploading.

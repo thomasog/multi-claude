@@ -97,6 +97,7 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   check 'the launcher sees a running profile'  'zsh "$cli" _running run'
   check 'open of a running profile starts no second Claude' 'stubbed open Run && ! grep -qF -- "--user-data-dir" "$STUB_LOG"'
   check 'open of a running profile brings that process forward' 'grep -qF -- "ProcessIdentifier($main)" "$STUB_LOG"'
+  check 'and reopens its window, as a Dock click does' 'grep -qF -- "0x72617070, \$.NSAppleEventDescriptor.descriptorWithProcessIdentifier($main)" "$STUB_LOG"'
   check 'open survives a process that is quitting' 'STUB_EXIT=1 stubbed open Run'
   kill $main $helper
   : > "$STUB_LOG"

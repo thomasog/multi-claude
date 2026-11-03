@@ -130,7 +130,8 @@ regular Claude in charge of them:
 - **Cowork on Windows** runs in one profile at a time: Claude runs one Cowork VM per Windows user.
 - **macOS Dock:** a running profile shows Claude's own icon, because the running app is Claude itself.
   Its colored launcher stays open beside it while the profile runs, so the Dock shows which profiles
-  are open, and clicking the colored icon brings that profile forward.
+  are open, and clicking the colored icon brings that profile forward. Keep the colored icon in the
+  Dock and use it, not Claude's.
 
 ## Uninstall
 
