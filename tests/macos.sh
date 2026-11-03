@@ -87,10 +87,8 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC)" >> "$STUB_L
   data="$HOME/Library/Application Support/Claude-Run"
   check 'open starts Claude on the profile folder' 'stubbed open Run && grep -qF -- "-n -a $MULTI_CLAUDE_CLAUDE_APP --args --user-data-dir=$data" "$STUB_LOG"'
   check 'open drops the variables of a Claude session' 'CLAUDE_CODE_USER_EMAIL=a ANTHROPIC_BASE_URL=b CLAUDECODE=1 stubbed open Run && grep -qF -- "--user-data-dir" "$STUB_LOG" && ! grep -qE "^(CLAUDE|ANTHROPIC)" "$STUB_LOG"'
-  pkill -f -- "$cli _guard Run"
   ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper --type=gpu --user-data-dir=$data" sleep 30 ) & helper=$!
   check 'a helper alone is not the main process'    'stubbed open Run && grep -qF -- "--user-data-dir=$data" "$STUB_LOG"'
-  pkill -f -- "$cli _guard Run"
   ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude --user-data-dir=$data" sleep 30 ) & main=$!
   check 'open of a running profile starts no second Claude' 'stubbed open Run && ! grep -qF -- "--user-data-dir" "$STUB_LOG"'
   check 'open of a running profile brings that process forward' 'grep -qF -- "ProcessIdentifier($main)" "$STUB_LOG"'
@@ -107,23 +105,6 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC)" >> "$STUB_L
 else
   print '  skip add with a fake Claude.app (needs macOS)'
 fi
-
-# Claude in Chrome: a profile took the browser's pairing; it must go back to the regular Claude.
-support="$HOME/Library/Application Support"
-main_host="$support/Claude/ChromeNativeHost/chrome-native-host"
-profile_host="$support/Claude-Work/ChromeNativeHost/chrome-native-host"
-chrome="$support/Google/Chrome/NativeMessagingHosts/com.anthropic.claude_browser_extension.json"
-manifest() { printf '{\n  "name": "com.anthropic.claude_browser_extension",\n  "path": "%s",\n  "type": "stdio"\n}\n' "$1"; }
-mkdir -p "${main_host:h}" "${chrome:h}"; touch "$main_host"; manifest "$profile_host" > "$chrome"
-check 'doctor shows a profile holding the pairing' 'grep -q "Chrome: profile Work" <<<"$(zsh "$cli" doctor)"'
-check 'pairing goes back to the regular Claude'   'zsh "$cli" _repair-pairing && grep -qF "\"path\": \"$main_host\"" "$chrome"'
-rm "$main_host"; manifest "$profile_host" > "$chrome"
-check 'pairing is left alone if the regular Claude never paired' 'zsh "$cli" _repair-pairing && grep -qF "\"path\": \"$profile_host\"" "$chrome"'
-odd_host="$tmp/Claude-Ops/home/Claude/ChromeNativeHost/chrome-native-host"   # a "Claude-" folder above the regular one
-manifest "$odd_host" > "$chrome"
-check 'a Claude- folder elsewhere in the path is not a profile' 'grep -q "Chrome: regular Claude" <<<"$(zsh "$cli" doctor)"'
-manifest "$support/Claude-Data/ChromeNativeHost/chrome-native-host" > "$chrome"
-check "Claude's own Claude-Data folder is not a profile" 'grep -q "Chrome: regular Claude" <<<"$(zsh "$cli" doctor)"'
 
 (( failed == 0 )) && print 'all tests passed'
 exit $failed

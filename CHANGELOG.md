@@ -16,6 +16,11 @@ All notable changes are documented here. The format follows
   and `ANTHROPIC_*` variables, as on Windows and Linux.
 - macOS: `multi-claude list` sees a running profile from a terminal inside it.
 
+### Removed
+
+- macOS: the Claude in Chrome watcher and the pairing line of `doctor`. Claude names a helper inside
+  `Claude.app` there, not a data folder, so they had nothing to repair.
+
 ### Changed
 
 - Releases are published only once every file is attached, so the latest-release links never point

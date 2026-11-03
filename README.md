@@ -116,8 +116,9 @@ regular Claude in charge of them:
 - **Open at login.** Leave this setting alone in profiles. On Windows the packaged (MSIX) app has a
   single startup entry, so turning it off in a profile can turn it off for your regular Claude too.
 - **Claude in Chrome** pairs with one Claude per computer, and every instance tries to claim it.
-  multi-claude keeps it on your regular Claude, in Chrome, Edge, Brave and Chromium, while profiles
-  run. `multi-claude doctor` shows the pairing.
+  On Windows and Linux multi-claude keeps it on your regular Claude, in Chrome, Edge, Brave and
+  Chromium, while profiles run, and `multi-claude doctor` shows the pairing. On macOS Claude points
+  the browser at a helper inside `Claude.app`, not at a data folder, so there is nothing to repair.
 - **Updates restart every Claude.** An idle Claude may install an app update on its own, and updating
   closes all Claude windows, including the one you are working in. Quit the profiles you are not
   using.
