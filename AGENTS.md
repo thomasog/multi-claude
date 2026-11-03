@@ -14,13 +14,15 @@ watcher tags the profile's windows with AppUserModelID `MultiClaude.<name>`. Rea
 One job: several Claude Desktop accounts open side by side, each telling itself apart, working
 every time and putting nothing of the user at risk. Weigh every change against that.
 
-- **In scope:** what makes profiles open, stay apart and be told apart: launching, separate data,
-  icons and colors, the taskbar button, keeping Claude in Chrome on the regular Claude, install and
-  uninstall, and fixes when Claude changes.
+- **In scope:** what makes profiles open, stay apart and be told apart: launching, separate data
+  (Claude Code's folder included), icons and colors, the taskbar button, keeping Claude in Chrome on
+  the regular Claude, install and uninstall, and fixes when Claude changes.
 - **Out of scope:** what Claude already does itself or what serves another purpose: usage meters,
-  account switching, syncing chats or settings between profiles, tray apps, auto-updaters.
+  account switching, syncing chats or app settings between profiles, tray apps, auto-updaters. The
+  one sync is opt-in: `--claude-code synced` links a profile's Claude Code customizations to `~/.claude`.
 - **Never:** read or copy sign-ins or tokens, call Anthropic's services, patch or copy the app, kill
-  Claude processes we didn't start, or touch the regular Claude's data.
+  Claude processes we didn't start, or touch the regular Claude's data (multi-claude only reads
+  `~/.claude`; a `synced` profile's own Claude Code writes through its links, by the user's choice).
 - **Priorities:** works correctly, then safe for the user, then stable, then fast. Prefer removing
   code to adding it. Workarounds for one Claude version live in one marked block and go once that
   version is gone.

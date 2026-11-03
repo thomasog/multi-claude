@@ -91,6 +91,10 @@ Sessions stay in the folder they were made in. Moving to `own` or `synced` copie
 sessions from `~/.claude`; sessions made while it was `own` come back when you switch back from
 `shared`. Quit the profile before you change its mode.
 
+**After moving a profile off `shared`, Claude Code no longer remembers a project.**
+Sessions are copied, project memory is not: `~/.claude` can't tell which account wrote it. To keep
+it, copy `~/.claude/projects/<project>/memory` into the same place in the profile's `.claude` folder.
+
 **A profile's Claude Code still uses `~/.claude`.**
 `multi-claude list` shows the profile's mode. Open the profile from its launcher, not from the
 regular Claude, after quitting it (on Windows, also from the tray). If you set `CLAUDE_CONFIG_DIR` in

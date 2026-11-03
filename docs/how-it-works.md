@@ -128,7 +128,10 @@ end up in one `projects` folder. So each profile picks one of three modes, with
   `synced` renames it back. Moving to `own` or `synced` from `shared` also copies the profile's own
   sessions from `~/.claude`: Claude Desktop lists each Code session with its `cliSessionId`, which
   names the transcript, so multi-claude copies exactly those transcripts, their session folders and
-  their file history, never overwriting and never changing `~/.claude`. Nothing is copied back to
+  their file history, never overwriting and never changing `~/.claude`. Only those move: project
+  memory (`projects/<dir>/memory`, which every account on `~/.claude` wrote to), plans and the rest
+  stay in `~/.claude`. If the copy stops halfway the profile stays `shared`, and running `add` again
+  goes on from there. Nothing is copied back to
   `~/.claude`: sessions from an own period come back with the folder. A change to or from `shared`
   needs the profile closed; on Windows, a profile made before 0.1.3 must open once first, so its data
   moves out of AppData.
