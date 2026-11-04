@@ -143,7 +143,8 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   for lock in $tmp/multi-claude-*.lock(N); do [[ -f $lock/pid ]] && kill "$(<$lock/pid)" 2>/dev/null; done
   exit_is 0 remove Fresh
   mkdir -p "$HOME/.local/bin"; cp "$cli" "$HOME/.local/bin/multi-claude"
-  check 'uninstall removes profiles only'     'exit_is 0 add Two && exit_is 0 uninstall && [[ ! -e "$HOME/Applications/Claude Two.app" && -d $other ]]'
+  mkdir "$HOME/Applications/.Claude Two.new" "$HOME/Applications/.Claude Two.old"   # an interrupted add
+  check 'uninstall removes profiles only'     'exit_is 0 add Two && exit_is 0 uninstall && [[ ! -e "$HOME/Applications/Claude Two.app" && -d $other && -z $(print -l "$HOME/Applications"/.Claude*(N)) ]]'
   check 'uninstall keeps sign-ins and Claude Code' '[[ -d "$HOME/Library/Application Support/Claude-Two/.claude" ]]'
   check 'uninstall leaves a real ~/.local/bin/multi-claude alone' '[[ -f $HOME/.local/bin/multi-claude && ! -L $HOME/.local/bin/multi-claude ]]'
 else

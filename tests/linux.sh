@@ -54,7 +54,7 @@ check 'add in another case changes that profile' 'exit_is 0 add work --color red
 check 'add writes the launcher aside, then moves it in' '[ "$(stat -c %i "$entry")" != "$ino" ] && [ "$(stat -c %a "$entry")" = 644 ] && [ -z "$(ls -A "$XDG_DATA_HOME/applications" | grep "^\.")" ]'
 check 'list shows the profile'                'grep -q "^Work " <<<"$("$cli" list)"'
 check 'removing an unknown profile exits 1'   'exit_is 1 remove Nope'
-check 'remove finds the profile in any case'  'exit_is 0 remove work && [ ! -f "$entry" ] && [ ! -d "$XDG_DATA_HOME/multi-claude/profiles/Work" ]'
+check 'remove finds the profile in any case'  'out=$("$cli" remove work) && [ ! -f "$entry" ] && [ ! -d "$XDG_DATA_HOME/multi-claude/profiles/Work" ] && grep -qx "Removed Claude Work. Remove its icon from the dock if you pinned it." <<<"$out"'
 
 # Claude Code: the profile's own config folder lives in its data folder, and that folder is the record.
 shared=$HOME/.claude; own=$XDG_CONFIG_HOME/Claude-Code/.claude
@@ -135,7 +135,8 @@ check 'its themed icon is found and recolored' 'exit_is 0 add Sys && [ -f "$XDG_
 # ~/.local/bin/multi-claude: uninstall removes only its own link, never a real file.
 bin=$HOME/.local/bin/multi-claude
 mkdir -p "${bin%/*}"; cp "$cli" "$bin"
-check 'uninstall cleans up'                   'exit_is 0 add Two && exit_is 0 uninstall && [ ! -d "$XDG_DATA_HOME/multi-claude" ] && ! ls "$XDG_DATA_HOME/applications" | grep -q multi-claude'
+touch "$XDG_DATA_HOME/applications/.multi-claude-two.abc123"   # an interrupted add
+check 'uninstall cleans up'                   'exit_is 0 add Two && exit_is 0 uninstall && [ ! -d "$XDG_DATA_HOME/multi-claude" ] && ! ls -A "$XDG_DATA_HOME/applications" | grep -q multi-claude'
 check 'uninstall keeps sign-ins and Claude Code' '[ -d "$XDG_CONFIG_HOME/Claude-Two/.claude" ] && [ -d "$XDG_CONFIG_HOME/Claude-Code/.claude/projects" ]'
 check 'uninstall leaves a real ~/.local/bin/multi-claude alone' '[ -f "$bin" ] && [ ! -L "$bin" ]'
 rm -f "$bin"; mkdir -p "$XDG_DATA_HOME/multi-claude/lib"; cp "$cli" "$XDG_DATA_HOME/multi-claude/lib/multi-claude"

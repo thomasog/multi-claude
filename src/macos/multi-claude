@@ -324,6 +324,7 @@ cmd_uninstall() {
   for app in "$APPS"/Claude\ *.app(N); do
     if is_ours "$app"; then rm -rf "$app"; fi
   done
+  rm -rf "$APPS"/.Claude\ *.new(N) "$APPS"/.Claude\ *.old(N)   # left by an interrupted add
   rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/multi-claude"
   # Only our own link: a real file there is someone else's install.
   if [[ -L $link && $(readlink "$link") == "${XDG_DATA_HOME:-$HOME/.local/share}/multi-claude/"* ]]; then rm -f "$link"; fi

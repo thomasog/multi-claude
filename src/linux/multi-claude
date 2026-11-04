@@ -273,7 +273,8 @@ cmd_remove() {
   [[ -f $(entry_of "$1") ]] || fail "No profile named '$1'."
   rm -f "$(entry_of "$1")"
   rm -rf "${PROFILES:?}/$1"
-  echo "Removed Claude $1. Its sign-in data is kept in $(data_dir "$1") - delete that folder to sign out for good."
+  echo "Removed Claude $1. Remove its icon from the dock if you pinned it."
+  echo "Its sign-in data is kept in $(data_dir "$1") - delete that folder to sign out for good."
 }
 
 cmd_doctor() {
@@ -296,7 +297,7 @@ cmd_uninstall() {
   local link=$HOME/.local/bin/multi-claude
   # Only our own link: a real file there is someone else's install.
   if [[ -L $link && $(readlink "$link") == "$DATA/multi-claude/"* ]]; then rm -f "$link"; fi
-  rm -f "$ENTRIES"/multi-claude-*.desktop
+  rm -f "$ENTRIES"/multi-claude-*.desktop "$ENTRIES"/.multi-claude-*   # the second: left by an interrupted add
   rm -rf "${DATA:?}/multi-claude"
   echo "multi-claude removed. Sign-in data is kept in $CONFIG/Claude-* - delete those folders to sign out for good."
 }
