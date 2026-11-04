@@ -6,6 +6,13 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `multi-claude code <name> [claude arguments]`: Claude Code in the terminal, on the profile's own
+  folder. It runs `claude` from the PATH with `CLAUDE_CONFIG_DIR` set, drops inherited `CLAUDE*` and
+  `ANTHROPIC*` variables, passes every argument after the name to `claude` and returns its exit
+  code. A `shared` profile runs on `~/.claude`. That terminal signs in on its own.
+
 ### Changed
 
 - `add --claude-code synced` with nothing to link from `~/.claude` now says that `list` shows the
