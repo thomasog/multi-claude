@@ -1,6 +1,7 @@
 """Tests for src/linux/recolor.py - standard library only. Run: python3 -m unittest discover tests"""
 import colorsys
 import pathlib
+import re
 import struct
 import sys
 import tempfile
@@ -50,6 +51,34 @@ def read_bytes(data):
         path = pathlib.Path(d) / "x.png"
         path.write_bytes(data)
         return recolor.read_png(path)
+
+
+# The palette, as each CLI spells it (src/*/multi-claude*); PaletteTest checks the CLIs agree.
+PALETTE = {"green": "1F6F43", "blue": "1F4E8C", "purple": "5B3A8E", "red": "9B2C2C",
+           "teal": "146C6C", "pink": "A0346B", "gray": "4A4F57"}
+SRC = pathlib.Path(__file__).resolve().parents[1] / "src"
+
+
+class PaletteTest(unittest.TestCase):
+    def test_every_color_lands_on_the_background_and_the_glyph_stays_white(self):
+        for name, hex_color in PALETTE.items():
+            with self.subTest(name):
+                out = recolor.recolor(synthetic_logo(), hex_color)
+                target = tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+                self.assertLessEqual(max(abs(a - b) for a, b in zip(out[4][4][:3], target)), 2, out[4][4])
+                self.assertTrue(all(c > 240 for c in out[16][16][:3]), out[16][16])
+
+    def test_the_three_clis_have_the_same_palette(self):
+        def palette(path, block, pair=r"\[?(\w+)\]?\s*=?\s*'?([0-9A-F]{6})'?"):
+            return dict(re.findall(pair, re.search(block, (SRC / path).read_text(), re.DOTALL).group(1)))
+        found = {
+            "linux": palette("linux/multi-claude", r"declare -A PALETTE=\((.*?)\)"),
+            "macos": palette("macos/multi-claude", r"typeset -A PALETTE=\((.*?)\)", r"(\w+) ([0-9A-F]{6})"),
+            "windows": palette("windows/multi-claude.ps1", r"\$Palette = \[ordered\]@\{(.*?)\}"),
+        }
+        for system, colors in found.items():
+            with self.subTest(system):
+                self.assertEqual(colors, PALETTE)
 
 
 class RecolorTest(unittest.TestCase):
