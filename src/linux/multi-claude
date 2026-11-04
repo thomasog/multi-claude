@@ -35,7 +35,10 @@ fail()       { echo "$1" >&2; exit "${2:-1}"; }
 data_dir()   { echo "$CONFIG/Claude-$1"; }
 app_id()     { echo "multi-claude-${1,,}"; }   # desktop file id = window class, so docks group them
 entry_of()   { echo "$ENTRIES/$(app_id "$1").desktop"; }
-is_running() { command -v pgrep >/dev/null && pgrep -f -- "--user-data-dir=$(data_dir "$1")( |\$)" >/dev/null; }
+# A path as a literal in pgrep's regex. sed, since ${1//...} takes & as the match only from bash 5.2.
+# shellcheck disable=SC2001
+re_escape()  { sed 's/[][\.*^$+?(){}|]/\\&/g' <<<"$1"; }
+is_running() { command -v pgrep >/dev/null && pgrep -f -- "--user-data-dir=$(re_escape "$(data_dir "$1")")( |\$)" >/dev/null; }
 check_name() {
   [[ $1 =~ ^[A-Za-z0-9-]{1,24}$ ]] || fail "Profile name: letters, digits and dashes, up to 24 characters (e.g. Work)." 64
   [[ ${1,,} != 3p && ${1,,} != data ]] || fail "The name '$1' is reserved: Claude uses that folder itself." 64

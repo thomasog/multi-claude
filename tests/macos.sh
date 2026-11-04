@@ -4,8 +4,9 @@
 set -uo pipefail
 repo=${0:A:h:h}
 cli=$repo/src/macos/multi-claude
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
+# Everything, Claude.app included, lives under a path with a space, parentheses and a plus.
+base=$(mktemp -d); tmp="$base/a (x)+"; mkdir "$tmp"
+trap 'rm -rf "$base"' EXIT
 # Nothing may touch the real home or the installed Claude.
 export HOME=$tmp/home TMPDIR=$tmp MULTI_CLAUDE_CLAUDE_APP=$tmp/Claude.app; unset XDG_DATA_HOME
 mkdir -p "$HOME"
@@ -113,7 +114,7 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   # open: the fake Claude writes down the environment and arguments LaunchServices gave it.
   dump=$tmp/open.dump
   mkdir -p "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS"
-  printf '#!/bin/sh\n{ env; for a in "$@"; do echo "ARG $a"; done; } > %s.part && mv %s.part %s\n' "$dump" "$dump" "$dump" > "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude"
+  printf '#!/bin/sh\n{ env; for a in "$@"; do echo "ARG $a"; done; } > '\''%s.part'\'' && mv '\''%s.part'\'' '\''%s'\''\n' "$dump" "$dump" "$dump" > "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude"
   chmod +x "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude"
   /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string Claude" -c "Add :CFBundlePackageType string APPL" "$MULTI_CLAUDE_CLAUDE_APP/Contents/Info.plist"
   opened() {

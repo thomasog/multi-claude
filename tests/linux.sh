@@ -6,8 +6,9 @@
 set -uo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 cli=$repo/src/linux/multi-claude
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
+# Everything lives under a path with a space, parentheses and a plus, which a regex or a split would trip on.
+base=$(mktemp -d); tmp="$base/a (x)+"; mkdir "$tmp"
+trap 'rm -rf "$base"' EXIT
 # Nothing may touch the real home or the system's own Claude.
 export HOME=$tmp/home XDG_DATA_HOME=$tmp/data XDG_CONFIG_HOME=$tmp/config XDG_DATA_DIRS=$tmp/system
 mkdir -p "$HOME"
@@ -97,9 +98,9 @@ check 'changing the mode keeps the color'        'exit_is 0 add Code --claude-co
 kill "$running"; wait "$running" 2>/dev/null
 # open: a fake Claude that writes down its environment and arguments.
 mkdir -p "$tmp/bin"; dump=$tmp/open.dump
-printf '#!/bin/sh\n{ env; for a in "$@"; do echo "ARG $a"; done; } > %s.part && mv %s.part %s\n' "$dump" "$dump" "$dump" > "$tmp/bin/fake-claude"
+printf '#!/bin/sh\n{ env; for a in "$@"; do echo "ARG $a"; done; } > '\''%s.part'\'' && mv '\''%s.part'\'' '\''%s'\''\n' "$dump" "$dump" "$dump" > "$tmp/bin/fake-claude"
 chmod +x "$tmp/bin/fake-claude"
-sed -i "s#^Exec=.*#Exec=$tmp/bin/fake-claude %U#" "$XDG_DATA_HOME/applications/claude-desktop.desktop"
+sed -i "s#^Exec=.*#Exec=\"$tmp/bin/fake-claude\" %U#" "$XDG_DATA_HOME/applications/claude-desktop.desktop"
 opened() { rm -f "$dump"; TMPDIR=$tmp CLAUDE_CONFIG_DIR=/inherited CLAUDECODE=1 "$cli" open "$1" || return 1; for _ in $(seq 50); do [ -f "$dump" ] && return 0; sleep 0.1; done; return 1; }
 check 'open runs Code on the own folder'          'opened Code && grep -qx "CLAUDE_CONFIG_DIR=$own" "$dump" && grep -qx "ARG --user-data-dir=$XDG_CONFIG_HOME/Claude-Code" "$dump" && ! grep -q "^CLAUDECODE=" "$dump"'
 check 'open leaves a shared profile on ~/.claude' 'exit_is 0 add Code --claude-code shared && opened Code && ! grep -q "^CLAUDE_CONFIG_DIR=" "$dump"'

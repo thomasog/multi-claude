@@ -33,10 +33,11 @@ agents, commands, output styles and CLAUDE.md from ~/.claude) or shared (~/.clau
 fail()        { print -u2 -- "$1"; exit "${2:-1}"; }
 data_dir()    { print -- "$HOME/Library/Application Support/Claude-$1"; }
 launcher()    { print -- "$APPS/Claude $1.app"; }
+re_escape()   { sed 's/[][\.*^$+?(){}|]/\\&/g' <<<"$1"; }   # a path as a literal in pgrep's regex
 # -a: pgrep skips its own ancestors otherwise, and a terminal inside a profile descends from it.
-is_running()  { pgrep -af -- "--user-data-dir=$(data_dir "$1")( |\$)" >/dev/null; }
+is_running()  { pgrep -af -- "--user-data-dir=$(re_escape "$(data_dir "$1")")( |\$)" >/dev/null; }
 # The profile's main process: Claude's helpers carry the same --user-data-dir.
-main_pid()    { pgrep -af -- "^$CLAUDE_APP/Contents/MacOS/[^ ]+ (.* )?--user-data-dir=$(data_dir "$1")( |\$)" | head -n1; }
+main_pid()    { pgrep -af -- "^$(re_escape "$CLAUDE_APP")/Contents/MacOS/[^ ]+ (.* )?--user-data-dir=$(re_escape "$(data_dir "$1")")( |\$)" | head -n1; }
 check_name() {
   [[ $1 =~ '^[A-Za-z0-9-]{1,24}$' ]] || fail "Profile name: letters, digits and dashes, up to 24 characters (e.g. Work)." 64
   [[ ${1:l} != 3p && ${1:l} != data ]] || fail "The name '$1' is reserved: Claude uses that folder itself." 64
