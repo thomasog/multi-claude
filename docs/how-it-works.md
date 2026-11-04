@@ -144,11 +144,15 @@ end up in one `projects` folder. So each profile picks one of three modes, with
   removed when a profile starts, as are all `CLAUDE*` and `ANTHROPIC*` variables; `doctor` mentions
   it.
 
-To use a profile's Claude Code in a terminal, set the variable yourself, e.g. on Linux
-`CLAUDE_CONFIG_DIR="$HOME/.config/Claude-Work/.claude" claude`, on macOS
-`CLAUDE_CONFIG_DIR="$HOME/Library/Application Support/Claude-Work/.claude" claude`, on Windows
-`$env:CLAUDE_CONFIG_DIR = "$env:USERPROFILE\.multi-claude\data\Claude-Work\.claude"; claude`. That
-terminal signs in on its own.
+To use a profile's Claude Code in a terminal, run `multi-claude code Work`. It starts `claude` from
+the PATH on Work's own folder, as `open` does for the Code tab: it drops inherited `CLAUDE*` and
+`ANTHROPIC*` variables and sets `CLAUDE_CONFIG_DIR`. Everything after the name goes to `claude`
+untouched (`multi-claude code Work --resume`, `multi-claude code Work -p "..."`), and `claude`'s exit
+code is multi-claude's. A `shared` profile runs on `~/.claude` and says so on stderr. It needs no
+running Claude Desktop, and it never touches sign-ins: that terminal signs in on its own, the first
+time. Quit those terminals too before changing the profile's Claude Code mode. On Windows
+PowerShell 5.1, an empty argument or one with a `"` inside can reach `claude` changed. Other tools
+can still use the folder by setting `CLAUDE_CONFIG_DIR` themselves.
 
 ## What profiles share
 
