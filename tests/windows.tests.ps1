@@ -127,7 +127,8 @@ Test 'code runs claude on the profile''s own folder, its arguments untouched' {
     $saved = $env:Path, $env:CLAUDECODE, $env:ANTHROPIC_API_KEY, $env:CLAUDE_CONFIG_DIR
     try {
         $env:Path = "$bin;$env:Path"; $env:CLAUDECODE = '1'; $env:ANTHROPIC_API_KEY = 'x'; $env:CLAUDE_CONFIG_DIR = 'C:\inherited'
-        Assert ((Invoke-CliIn $home2 $local2 code work -p 'hello world' --resume --) -eq 7) 'claude''s exit code was not ours'
+        # Quoted: a bare -- here would end Invoke-CliIn's own parameters. The CLI passes it on to claude.
+        Assert ((Invoke-CliIn $home2 $local2 code work -p 'hello world' --resume '--') -eq 7) 'claude''s exit code was not ours'
         $vars = @(Get-Content (Join-Path $bin 'env.txt'))
         Assert ($vars -contains "CLAUDE_CONFIG_DIR=$own") "got $($vars -match '^CLAUDE_CONFIG_DIR=')"
         Assert (-not ($vars -match '^(CLAUDECODE|ANTHROPIC_API_KEY)=')) 'inherited variables reached claude'
