@@ -13,6 +13,8 @@ mkdir -p "$HOME"
 failed=0
 check()   { if eval "$2"; then print "  ok   $1"; else print "  FAIL $1"; failed=1; fi; }
 exit_is() { zsh "$cli" "${@:2}" >/dev/null 2>&1; [[ $? -eq $1 ]]; }
+# Waits until process $1 runs with $2 in its arguments: a fake Claude started with & needs a moment.
+started() { for _ in {1..100}; do [[ $(ps -ww -p $1 -o args= 2>/dev/null) == *"$2"* ]] && return 0; sleep 0.05; done; print "       (process $1 never started)"; return 1; }
 
 print macos
 check 'script parses'                       'zsh -n "$cli"'
@@ -94,8 +96,10 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   check 'open drops the variables of a Claude session' 'CLAUDE_CODE_USER_EMAIL=a ANTHROPIC_BASE_URL=b CLAUDECODE=1 stubbed open Run && grep -qF -- "--user-data-dir" "$STUB_LOG" && ! grep -qE "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_LAUNCHER)" "$STUB_LOG"'
   check 'the launcher sees a stopped profile'  '! zsh "$cli" _running Run'
   ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper --type=gpu --user-data-dir=$data" sleep 30 ) & helper=$!
+  started $helper "Claude Helper --type=gpu"
   check 'a helper alone is not the main process'    'stubbed open Run && grep -qF -- "--user-data-dir=$data" "$STUB_LOG"'
   ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude --user-data-dir=$data" sleep 30 ) & main=$!
+  started $main "MacOS/Claude --user-data-dir"
   check 'the launcher sees a running profile'  'zsh "$cli" _running run'
   check 'open of a running profile starts no second Claude' 'stubbed open Run && ! grep -qF -- "--user-data-dir" "$STUB_LOG"'
   check 'open of a running profile brings that process forward' 'grep -qF -- "ProcessIdentifier($main)" "$STUB_LOG"'
@@ -108,6 +112,7 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   ( exec -a "fake --user-data-dir=$data" zsh "$cli" list ) > "$tmp/list.out"
   check 'list sees a profile from a terminal inside it' 'grep -q "^Run  *running" "$tmp/list.out"'
   ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude --user-data-dir=$data" sleep 30 ) & main=$!
+  started $main "MacOS/Claude --user-data-dir"
   check 'a removed profile is not running for its launcher' 'exit_is 0 remove Run && ! zsh "$cli" _running Run'
   kill $main
   check 'a new profile gets its own Claude Code' 'exit_is 0 add Fresh && [[ -d "$HOME/Library/Application Support/Claude-Fresh/.claude" ]] && grep -q "^Fresh  *own " <<<"$(zsh "$cli" list)"'
@@ -170,7 +175,7 @@ check 'own brings it back'                     'code --claude-code own >/dev/nul
 rm -rf "$own"; print '{"env": {"ANTHROPIC_API_KEY": "x"}}' > "$shared/settings.json"
 check 'settings with an env block are not copied' 'grep -q "was not copied: it has an env block" <<<"$(code --claude-code synced)" && [[ ! -e $own/settings.json ]]'
 zsh -c 'sleep 30; :' _ "--user-data-dir=$data" & running=$!
-sleep 0.3
+started $running "--user-data-dir=$data"
 check 'the mode does not change while it runs' 'code --claude-code shared >/dev/null 2>&1; [[ $? -eq 1 && -d $own ]] && grep -q "^Quit Claude Code first" <<<"$(code --claude-code shared 2>&1)"'
 kill $running 2>/dev/null; wait $running 2>/dev/null
 check 'doctor names an inherited CLAUDE_CONFIG_DIR' 'grep -q "^CLAUDE_CONFIG_DIR: /x here; profiles never take it" <<<"$(CLAUDE_CONFIG_DIR=/x zsh "$cli" doctor)"'

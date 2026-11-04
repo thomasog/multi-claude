@@ -15,6 +15,8 @@ mkdir -p "$HOME"
 failed=0
 check()   { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1"; failed=1; fi; }
 exit_is() { "$cli" "${@:2}" >/dev/null 2>&1; [ $? -eq "$1" ]; }
+# Waits until process $1 runs with $2 in its arguments: a fake Claude started with & needs a moment.
+started() { for _ in $(seq 100); do [[ $(ps -ww -p "$1" -o args= 2>/dev/null) == *"$2"* ]] && return 0; sleep 0.05; done; echo "       (process $1 never started)"; return 1; }
 
 # A fake Claude: a desktop entry and a synthetic orange icon.
 mkdir -p "$XDG_DATA_HOME/applications"
@@ -90,7 +92,7 @@ check 'add goes on from there'                   'exit_is 0 add Code --claude-co
 rm -rf "$own"
 check 'settings with an env block are not copied' 'grep -q "was not copied: it has an env block" <<<"$("$cli" add Code --claude-code synced)" && [ ! -e "$own/settings.json" ] && [ "$(snapshot)" = "$before" ]'
 bash -c 'sleep 30; :' _ "--user-data-dir=$XDG_CONFIG_HOME/Claude-Code" & running=$!
-sleep 0.3
+started "$running" "--user-data-dir=$XDG_CONFIG_HOME/Claude-Code"
 check 'the mode does not change while it runs'   'exit_is 1 add Code --claude-code shared && [ -d "$own" ] && grep -q "^Quit Claude Code first" <<<"$("$cli" add Code --claude-code shared 2>&1)"'
 check 'but it recolors'                          'exit_is 0 add Code --color teal && exit_is 0 add Code --claude-code own'
 icon=$(grep -m1 '^Icon=' "$XDG_DATA_HOME/applications/multi-claude-code.desktop" | cut -d= -f2-); sum=$(md5sum < "$icon")
