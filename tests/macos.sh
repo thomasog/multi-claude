@@ -88,6 +88,7 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   zsh "$cli" add Run >/dev/null 2>&1
   data="$HOME/Library/Application Support/Claude-Run"
   check 'open from a terminal goes through the launcher' ': > "$STUB_LOG"; PATH="$tmp/stub:$PATH" zsh "$cli" open run >/dev/null 2>&1 && grep -qxF -- "$HOME/Applications/Claude Run.app" "$STUB_LOG"'
+  check 'a launcher from before 0.1.6 still opens Claude' '/usr/libexec/PlistBuddy -c "Delete :OSAAppletStayOpen" "$HOME/Applications/Claude Run.app/Contents/Info.plist" && : > "$STUB_LOG"; PATH="$tmp/stub:$PATH" zsh "$cli" open Run >/dev/null 2>&1 && grep -qF -- "--user-data-dir=$data" "$STUB_LOG"'
   check 'open starts Claude on the profile folder' 'stubbed open Run && grep -qF -- "-n -a $MULTI_CLAUDE_CLAUDE_APP --args --user-data-dir=$data" "$STUB_LOG"'
   check 'open drops the variables of a Claude session' 'CLAUDE_CODE_USER_EMAIL=a ANTHROPIC_BASE_URL=b CLAUDECODE=1 stubbed open Run && grep -qF -- "--user-data-dir" "$STUB_LOG" && ! grep -qE "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_LAUNCHER)" "$STUB_LOG"'
   check 'the launcher sees a stopped profile'  '! zsh "$cli" _running Run'
@@ -105,6 +106,9 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   check 'open from a terminal inside the profile starts no second Claude' 'grep -qF "ProcessIdentifier(" "$STUB_LOG" && ! grep -qF -- "--user-data-dir" "$STUB_LOG"'
   ( exec -a "fake --user-data-dir=$data" zsh "$cli" list ) > "$tmp/list.out"
   check 'list sees a profile from a terminal inside it' 'grep -q "^Run  *running" "$tmp/list.out"'
+  ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude --user-data-dir=$data" sleep 30 ) & main=$!
+  check 'a removed profile is not running for its launcher' 'exit_is 0 remove Run && ! zsh "$cli" _running Run'
+  kill $main
   mkdir -p "$HOME/.local/bin"; cp "$cli" "$HOME/.local/bin/multi-claude"
   check 'uninstall removes profiles only'     'exit_is 0 add Two && exit_is 0 uninstall && [[ ! -e "$HOME/Applications/Claude Two.app" && -d $other ]]'
   check 'uninstall leaves a real ~/.local/bin/multi-claude alone' '[[ -f $HOME/.local/bin/multi-claude && ! -L $HOME/.local/bin/multi-claude ]]'

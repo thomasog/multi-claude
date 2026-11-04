@@ -49,6 +49,8 @@ plist_set() {
 # Our launchers are told apart by their bundle ID, never by their name alone.
 bundle_id() { /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$1/Contents/Info.plist" 2>/dev/null; }
 is_ours()   { local id; id=$(bundle_id "$1") && [[ $id == $BUNDLE_PREFIX.* ]]; }
+# Launchers from 0.1.6 on stay open while their profile runs.
+stays_open() { [[ $(/usr/libexec/PlistBuddy -c "Print :OSAAppletStayOpen" "$1/Contents/Info.plist" 2>/dev/null) == true ]]; }
 
 profiles() {
   local app id
@@ -107,10 +109,10 @@ cmd_add() {
   app=$(launcher "$name"); built="$work/Claude $name.app"; plist="$built/Contents/Info.plist"
   osacompile -s -o "$built" \
     -e "property seen : false" -e "property waited : 0" \
-    -e "on openProfile()" \
+    -e "on openProfile()" -e "set seen to false" -e "set waited to 0" \
     -e "do shell script \"MULTI_CLAUDE_LAUNCHER=1 \" & $cli & \" open \" & quoted form of \"$name\"" \
     -e "end openProfile" \
-    -e "on run" -e "set seen to false" -e "set waited to 0" -e "openProfile()" -e "end run" \
+    -e "on run" -e "openProfile()" -e "end run" \
     -e "on reopen" -e "openProfile()" -e "end reopen" \
     -e "on idle" -e "try" \
     -e "do shell script $cli & \" _running \" & quoted form of \"$name\"" -e "set seen to true" \
@@ -143,7 +145,7 @@ cmd_list() {
 }
 
 # By PID, because `open -a` would pick any Claude, the regular one included. Like a click on its Dock
-# icon: activate, then a reopen event ('aevt' 'rapp'), which brings back a window closed with Cmd+W.
+# icon: activate, then a reopen event ('aevt' 'rapp'), which brings back a window that was closed.
 bring_forward() {
   osascript -l JavaScript -e "ObjC.import('AppKit'); var app = \$.NSRunningApplication.runningApplicationWithProcessIdentifier($1); app.unhide; app.activateWithOptions(\$.NSApplicationActivateAllWindows); \$.NSAppleEventDescriptor.appleEventWithEventClassEventIDTargetDescriptorReturnIDTransactionID(0x61657674, 0x72617070, \$.NSAppleEventDescriptor.descriptorWithProcessIdentifier($1), -1, 0).sendEventWithOptionsTimeoutError(1, 5, null)" >/dev/null 2>&1 || true   # it may be quitting
 }
@@ -152,8 +154,9 @@ cmd_open() {
   check_name "$1"
   is_ours "$(launcher "$1")" || fail "No profile named '$1'."
   need_claude
-  # Through the launcher, which calls back here, so its icon shows in the Dock as running.
-  if [[ -z ${MULTI_CLAUDE_LAUNCHER:-} ]]; then open "$(launcher "$1")"; return; fi
+  # Through the launcher, which calls back here, so its icon shows in the Dock as running. An older
+  # launcher quits at once and calls back without the flag: it opens Claude here, as it always did.
+  if [[ -z ${MULTI_CLAUDE_LAUNCHER:-} ]] && stays_open "$(launcher "$1")"; then open "$(launcher "$1")"; return; fi
   # Claude has no single-instance lock here: a second `open -n` would run it twice on the same data.
   local pid; if pid=$(main_pid "$1"); then bring_forward "$pid"; return 0; fi
   # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to Claude.
@@ -218,7 +221,8 @@ case ${cmd:l} in
   remove)    check_name "$name"; cmd_remove "$(canonical "$name")" ;;
   doctor)    cmd_doctor; if (( selftest )); then print; print "Self-test: Windows only (taskbar tagging)."; fi ;;
   uninstall) cmd_uninstall ;;
-  _running)  check_name "$name"; is_running "$(canonical "$name")" ;;   # internal: the launcher's check
+  _running)  check_name "$name"; name=$(canonical "$name")             # internal: the launcher's check
+             is_ours "$(launcher "$name")" && is_running "$name" ;;      # a removed profile's launcher quits
   version)   print "multi-claude $VERSION" ;;
   help|"")   print -- "$USAGE" ;;
   *)         fail "Unknown command '$cmd'."$'\n\n'"$USAGE" 64 ;;

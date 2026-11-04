@@ -14,10 +14,10 @@ you in the profile. With single sign-on, quit every other Claude first, includin
 profiles (on Windows, also from the tray).
 
 **Claude in Chrome talks to the wrong account.**
-On Windows and Linux, the browser pairs with the Claude that registered last. Opening a profile through its multi-claude
-launcher points it back to your regular Claude; `multi-claude doctor` shows the current pairing. If
-a profile was opened some other way, open it again from its launcher, or toggle Claude in Chrome off
-and on in your regular Claude.
+On Windows and Linux, the browser pairs with the Claude that registered last. Opening a profile
+through its multi-claude launcher points it back to your regular Claude; `multi-claude doctor` shows
+the current pairing. If a profile was opened some other way, open it again from its launcher, or
+toggle Claude in Chrome off and on in your regular Claude.
 
 **A keyboard shortcut opens a profile instead of the regular Claude.**
 Only one app can own a global shortcut. In the profile's settings, turn its shortcut off or change it.
@@ -65,6 +65,9 @@ The log is at `%USERPROFILE%\.multi-claude\profiles\<name>\open.log`.
 
 **Windows: the pinned button lost its color.**
 Unpin it, open the profile from the Start menu, and pin the running button again.
+
+**macOS: the colored icon doesn't stay in the Dock while its profile runs.**
+The launcher was made before 0.1.6. Run `multi-claude add <name> --color <color>` again to rebuild it.
 
 **macOS: the launcher shows a generic icon.**
 Run `multi-claude add <name> --color <color>` again to rebuild it, then remove it from the Dock and
