@@ -23,6 +23,7 @@ USAGE="multi-claude $VERSION - several Claude Desktop accounts side by side (Lin
                                               new profile, or change one: own sign-in and colored launcher
   multi-claude list                           installed profiles
   multi-claude open <name>                    open a profile
+  multi-claude code <name> [claude arguments]  Claude Code in this terminal, on the profile's own folder
   multi-claude remove <name>                  remove a profile (its sign-in data is kept)
   multi-claude doctor [--selftest]            check this machine
   multi-claude uninstall                      remove multi-claude and every profile launcher
@@ -254,6 +255,21 @@ cmd_list() {
   if (( ! found )); then echo "No profiles yet. Add one with: multi-claude add <name>"; fi
 }
 
+# Claude Code in this terminal on the profile's own folder: everything after the name goes to claude
+# untouched, and exec makes its exit code ours. Sign-ins are claude's own business, here as elsewhere.
+cmd_code() {
+  local var
+  [[ -f $(entry_of "$1") ]] || fail "No profile named '$1'."
+  command -v claude >/dev/null || fail "Claude Code's claude command is not on the PATH. Install Claude Code, or add its folder to the PATH."
+  # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to claude.
+  for var in $(compgen -e); do
+    if [[ $var =~ ^(CLAUDE|ANTHROPIC) ]]; then unset "$var"; fi
+  done
+  if [[ -d $(code_dir "$1") ]]; then export CLAUDE_CONFIG_DIR; CLAUDE_CONFIG_DIR=$(code_dir "$1")
+  else echo "Claude $1 shares ~/.claude, so this Claude Code does too." >&2; fi
+  exec claude "${rest[@]}"
+}
+
 cmd_open() {
   local entry var; local -a argv
   check_name "$1"
@@ -305,8 +321,10 @@ cmd_uninstall() {
 }
 
 # --- arguments ---------------------------------------------------------------------------------------
-cmd="" name="" color=green color_given=0 code="" selftest=0
+cmd="" name="" color=green color_given=0 code="" selftest=0 rest=()
 while (( $# )); do
+  # `code <name>` hands everything after the name to claude, options included.
+  if [[ ${cmd,,} == code && -n $name ]]; then rest=("$@"); break; fi
   case $1 in
     -c|--color)   (( $# >= 2 )) || fail "--color needs a value." 64; color=$2; color_given=1; shift ;;
     --claude-code) (( $# >= 2 )) || fail "--claude-code needs a value." 64; code=$2; shift ;;
@@ -327,6 +345,7 @@ case ${cmd,,} in
   list)      cmd_list ;;
   open)      check_name "$name"; cmd_open "$(canonical "$name")" ;;
   remove)    check_name "$name"; cmd_remove "$(canonical "$name")" ;;
+  code)      check_name "$name"; cmd_code "$(canonical "$name")" ;;
   doctor)    cmd_doctor; if (( selftest )); then echo; echo "Self-test: Windows only (taskbar tagging)."; fi ;;
   uninstall) cmd_uninstall ;;
   version)   echo "multi-claude $VERSION" ;;

@@ -22,6 +22,7 @@ USAGE="multi-claude $VERSION - several Claude Desktop accounts side by side
                                               new profile, or change one: own sign-in and colored launcher
   multi-claude list                           installed profiles
   multi-claude open <name>                    open a profile
+  multi-claude code <name> [claude arguments]  Claude Code in this terminal, on the profile's own folder
   multi-claude remove <name>                  remove a profile (its sign-in data is kept)
   multi-claude doctor [--selftest]            check this Mac
   multi-claude uninstall                      remove multi-claude and every profile launcher
@@ -280,6 +281,21 @@ bring_forward() {
   osascript -l JavaScript -e "ObjC.import('AppKit'); var app = \$.NSRunningApplication.runningApplicationWithProcessIdentifier($1); app.unhide; app.activateWithOptions(\$.NSApplicationActivateAllWindows); \$.NSAppleEventDescriptor.appleEventWithEventClassEventIDTargetDescriptorReturnIDTransactionID(0x61657674, 0x72617070, \$.NSAppleEventDescriptor.descriptorWithProcessIdentifier($1), -1, 0).sendEventWithOptionsTimeoutError(1, 5, null)" >/dev/null 2>&1 || true   # it may be quitting
 }
 
+# Claude Code in this terminal on the profile's own folder: everything after the name goes to claude
+# untouched, and exec makes its exit code ours. Sign-ins are claude's own business, here as elsewhere.
+cmd_code() {
+  local dir
+  is_ours "$(launcher "$1")" || fail "No profile named '$1'."
+  command -v claude >/dev/null || fail "Claude Code's claude command is not on the PATH. Install Claude Code, or add its folder to the PATH."
+  dir=$(code_dir "$1")
+  # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to claude.
+  # This also drops our own CLAUDE_APP, which nothing needs from here on.
+  unset -m 'CLAUDE*' 'ANTHROPIC*'
+  if [[ -d $dir ]]; then export CLAUDE_CONFIG_DIR=$dir
+  else print -u2 -- "Claude $1 shares ~/.claude, so this Claude Code does too."; fi
+  exec claude "${rest[@]}"
+}
+
 cmd_open() {
   check_name "$1"
   is_ours "$(launcher "$1")" || fail "No profile named '$1'."
@@ -334,8 +350,10 @@ cmd_uninstall() {
 }
 
 # --- arguments ---------------------------------------------------------------------------------------
-cmd="" name="" color=green color_given=0 code="" selftest=0
+cmd="" name="" color=green color_given=0 code="" selftest=0 rest=()
 while (( $# )); do
+  # `code <name>` hands everything after the name to claude, options included.
+  if [[ ${cmd:l} == code && -n $name ]]; then rest=("$@"); break; fi
   case $1 in
     -c|--color)   (( $# >= 2 )) || fail "--color needs a value." 64; color=$2; color_given=1; shift ;;
     --claude-code) (( $# >= 2 )) || fail "--claude-code needs a value." 64; code=$2; shift ;;
@@ -356,6 +374,7 @@ case ${cmd:l} in
   list)      cmd_list ;;
   open)      check_name "$name"; cmd_open "$(canonical "$name")" ;;
   remove)    check_name "$name"; cmd_remove "$(canonical "$name")" ;;
+  code)      check_name "$name"; cmd_code "$(canonical "$name")" ;;
   doctor)    cmd_doctor; if (( selftest )); then print; print "Self-test: Windows only (taskbar tagging)."; fi ;;
   uninstall) cmd_uninstall ;;
   _running)  check_name "$name"; name=$(canonical "$name")             # internal: the launcher's check

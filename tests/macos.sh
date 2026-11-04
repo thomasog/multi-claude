@@ -35,6 +35,8 @@ check 'doctor --selftest exits 0'           'grep -q "^Self-test: Windows only" 
 check 'extra argument exits 64'             'exit_is 64 add Work extra'
 check 'removing an unknown profile exits 1' 'exit_is 1 remove NoSuchProfile'
 check 'opening an unknown profile exits 1'  'exit_is 1 open NoSuchProfile'
+check 'code of an unknown profile exits 1'  'exit_is 1 code NoSuchProfile && grep -qx "No profile named '"'NoSuchProfile'"'." <<<"$(zsh "$cli" code NoSuchProfile 2>&1)"'
+check 'code without a name exits 64'        'exit_is 64 code'
 
 # A logo-like PNG: orange, a white glyph, a fade between them, a clear corner and a soft edge.
 python3 - "$repo/src/linux" "$tmp/source.png" <<"PY"
@@ -157,10 +159,23 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   }
   fresh="$HOME/Library/Application Support/Claude-Fresh"
   check 'open --env runs Code on the own folder' 'opened Fresh && grep -qx "CLAUDE_CONFIG_DIR=$fresh/.claude" "$dump" && grep -qx "ARG --user-data-dir=$fresh" "$dump" && ! grep -q "^CLAUDECODE=" "$dump" || { cat "$dump" 2>/dev/null; false; }'
+  # code: a fake claude on the PATH that writes down its environment and arguments, then exits 7.
+  cdump=$tmp/code.dump; mkdir -p "$tmp/cbin"
+  printf '#!/bin/sh\n{ env | grep -E "^(CLAUDE|ANTHROPIC)"; for a in "$@"; do echo "ARG <$a>"; done; } > '\''%s'\''\nexit 7\n' "$cdump" > "$tmp/cbin/claude"
+  chmod +x "$tmp/cbin/claude"
+  coded() { rm -f "$cdump"; PATH="$tmp/cbin:/usr/bin:/bin:/usr/sbin:/sbin" CLAUDE_CONFIG_DIR=/inherited CLAUDECODE=1 ANTHROPIC_API_KEY=x zsh "$cli" code "$@"; }
+  expected=$(printf 'CLAUDE_CONFIG_DIR=%s\nARG <-p>\nARG <hello world>\nARG <>\nARG <--resume>\nARG <-->\nARG <-v>' "$fresh/.claude")
+  check 'code runs claude on the own folder, its arguments untouched' 'coded fresh -p "hello world" "" --resume -- -v >/dev/null 2>&1; [[ $? -eq 7 && $(<$cdump) == $expected ]] || { cat "$cdump" 2>/dev/null; false; }'
+  if PATH=/usr/bin:/bin:/usr/sbin:/sbin command -v claude >/dev/null; then
+    print '  skip code without claude on the PATH (this Mac has claude in a system folder)'
+  else
+    check 'code without claude on the PATH exits 1' 'out=$(PATH=/usr/bin:/bin:/usr/sbin:/sbin zsh "$cli" code Fresh 2>&1); [[ $? -eq 1 && $out == "Claude Code'"'"'s claude command is not on the PATH. Install Claude Code, or add its folder to the PATH." ]]'
+  fi
   touch "$HOME/Applications/Claude Fresh.app/kept"
   check 'add switches it to shared'             'out=$(zsh "$cli" add Fresh --claude-code shared 2>&1) || { print -r -- "$out"; false; } && [[ ! -e $fresh/.claude ]]'
   check 'changing the mode leaves the launcher' '[[ -e "$HOME/Applications/Claude Fresh.app/kept" ]]'
   check 'open leaves a shared profile alone'    'opened Fresh && ! grep -q "^CLAUDE_CONFIG_DIR=" "$dump" || { cat "$dump" 2>/dev/null; false; }'
+  check 'code on a shared profile uses ~/.claude and says so' 'err=$(coded Fresh 2>&1 >/dev/null); [[ $err == "Claude Fresh shares ~/.claude, so this Claude Code does too." && -f $cdump && -z $(<$cdump) ]]'
   for lock in $tmp/multi-claude-*.lock(N); do [[ -f $lock/pid ]] && kill "$(<$lock/pid)" 2>/dev/null; done
   exit_is 0 remove Fresh
   mkdir -p "$HOME/.local/bin"; cp "$cli" "$HOME/.local/bin/multi-claude"
