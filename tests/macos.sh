@@ -137,6 +137,7 @@ print -r -- "$@" >> "$STUB_LOG"; env | grep -E "^(CLAUDE|ANTHROPIC|MULTI_CLAUDE_
   exit_is 0 remove Fresh
   mkdir -p "$HOME/.local/bin"; cp "$cli" "$HOME/.local/bin/multi-claude"
   check 'uninstall removes profiles only'     'exit_is 0 add Two && exit_is 0 uninstall && [[ ! -e "$HOME/Applications/Claude Two.app" && -d $other ]]'
+  check 'uninstall keeps sign-ins and Claude Code' '[[ -d "$HOME/Library/Application Support/Claude-Two/.claude" ]]'
   check 'uninstall leaves a real ~/.local/bin/multi-claude alone' '[[ -f $HOME/.local/bin/multi-claude && ! -L $HOME/.local/bin/multi-claude ]]'
 else
   print '  skip add with a fake Claude.app (needs macOS)'
@@ -172,6 +173,9 @@ mkdir -p "$own/skills/profile-only"
 check "synced keeps the profile's own folders" 'code --claude-code synced >/dev/null && [[ ! -L $own/skills && -d $own/skills/profile-only && -L $own/agents ]]'
 check 'shared parks the folder'                'code --claude-code shared >/dev/null && [[ ! -e $own && -d $own.off/projects ]]'
 check 'own brings it back'                     'code --claude-code own >/dev/null && [[ $(<$own/projects/-work/$id.jsonl) == changed && ! -e $own.off ]]'
+mkdir "$own.off"
+check 'shared refuses a parked folder in the way' 'code --claude-code shared >/dev/null 2>&1; [[ $? -eq 1 && -d $own ]] && grep -q "already exists: move it aside first" <<<"$(code --claude-code shared 2>&1)"'
+rmdir "$own.off"
 rm -rf "$own"; print '{"env": {"ANTHROPIC_API_KEY": "x"}}' > "$shared/settings.json"
 check 'settings with an env block are not copied' 'grep -q "was not copied: it has an env block" <<<"$(code --claude-code synced)" && [[ ! -e $own/settings.json ]]'
 zsh -c 'sleep 30; :' _ "--user-data-dir=$data" & running=$!

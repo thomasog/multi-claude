@@ -84,6 +84,9 @@ mkdir -p "$own/skills/profile-only"
 check "synced keeps the profile's own folders"   'exit_is 0 add Code --claude-code synced && [ ! -L "$own/skills" ] && [ -d "$own/skills/profile-only" ] && [ -L "$own/agents" ]'
 check 'shared parks the folder'                  'exit_is 0 add Code --claude-code shared && [ "$(code_of Code)" = shared ] && [ ! -e "$own" ] && [ -d "$own.off/projects" ]'
 check 'own brings it back'                       'exit_is 0 add Code --claude-code own && [ "$(cat "$own/projects/-work/$id.jsonl")" = changed ] && [ ! -e "$own.off" ]'
+mkdir "$own.off"
+check 'shared refuses a parked folder in the way' 'exit_is 1 add Code --claude-code shared && [ -d "$own" ] && grep -q "already exists: move it aside first" <<<"$("$cli" add Code --claude-code shared 2>&1)"'
+rmdir "$own.off"
 rm -rf "$own"; echo '{"env": {"ANTHROPIC_API_KEY": "x"}}' > "$shared/settings.json"; before=$(snapshot)
 mkdir -p "$own.new"; : > "$own.new/projects"   # a file in the way stops the copy
 check 'a copy that stops halfway leaves it shared' 'exit_is 1 add Code --claude-code own && [ "$(code_of Code)" = shared ] && grep -q "^Could not copy" <<<"$("$cli" add Code --claude-code own 2>&1)"'
@@ -151,6 +154,7 @@ check "Claude's own Claude-Data folder is not a profile" 'grep -q "Chrome: regul
 bin=$HOME/.local/bin/multi-claude
 mkdir -p "${bin%/*}"; cp "$cli" "$bin"
 check 'uninstall cleans up'                   'exit_is 0 add Two && exit_is 0 uninstall && [ ! -d "$XDG_DATA_HOME/multi-claude" ] && ! ls "$XDG_DATA_HOME/applications" | grep -q multi-claude'
+check 'uninstall keeps sign-ins and Claude Code' '[ -d "$XDG_CONFIG_HOME/Claude-Two/.claude" ] && [ -d "$XDG_CONFIG_HOME/Claude-Code/.claude/projects" ]'
 check 'uninstall leaves a real ~/.local/bin/multi-claude alone' '[ -f "$bin" ] && [ ! -L "$bin" ]'
 rm -f "$bin"; mkdir -p "$XDG_DATA_HOME/multi-claude/lib"; cp "$cli" "$XDG_DATA_HOME/multi-claude/lib/multi-claude"
 if ln -s "$XDG_DATA_HOME/multi-claude/lib/multi-claude" "$bin" 2>/dev/null && [ -L "$bin" ]; then
