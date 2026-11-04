@@ -307,7 +307,7 @@ cmd_doctor() {
   for tool in sips iconutil osacompile osascript codesign; do
     if command -v $tool >/dev/null; then print "  $tool: ok"; else print "  $tool: missing"; fi
   done
-  if [[ -n ${CLAUDE_CONFIG_DIR:-} ]]; then print -- "CLAUDE_CONFIG_DIR: $CLAUDE_CONFIG_DIR here; profiles never take it (shared means ~/.claude)"; fi
+  if [[ -n ${CLAUDE_CONFIG_DIR:-} ]]; then print -- "CLAUDE_CONFIG_DIR: $CLAUDE_CONFIG_DIR in this terminal; open drops it: each profile uses its own folder or ~/.claude"; fi
   print
   cmd_list
 }

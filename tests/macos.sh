@@ -182,7 +182,7 @@ zsh -c 'sleep 30; :' _ "--user-data-dir=$data" & running=$!
 started $running "--user-data-dir=$data"
 check 'the mode does not change while it runs' 'code --claude-code shared >/dev/null 2>&1; [[ $? -eq 1 && -d $own ]] && grep -q "^Quit Claude Code first" <<<"$(code --claude-code shared 2>&1)"'
 kill $running 2>/dev/null; wait $running 2>/dev/null
-check 'doctor names an inherited CLAUDE_CONFIG_DIR' 'grep -q "^CLAUDE_CONFIG_DIR: /x here; profiles never take it" <<<"$(CLAUDE_CONFIG_DIR=/x zsh "$cli" doctor)"'
+check 'doctor names an inherited CLAUDE_CONFIG_DIR' 'grep -q "^CLAUDE_CONFIG_DIR: /x in this terminal; open drops it: each profile uses its own folder or ~/.claude$" <<<"$(CLAUDE_CONFIG_DIR=/x zsh "$cli" doctor)"'
 
 (( failed == 0 )) && print 'all tests passed'
 exit $failed

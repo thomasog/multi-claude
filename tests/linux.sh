@@ -110,7 +110,7 @@ opened() { rm -f "$dump"; TMPDIR=$tmp CLAUDE_CONFIG_DIR=/inherited CLAUDECODE=1 
 check 'open runs Code on the own folder'          'opened Code && grep -qx "CLAUDE_CONFIG_DIR=$own" "$dump" && grep -qx "ARG --user-data-dir=$XDG_CONFIG_HOME/Claude-Code" "$dump" && ! grep -q "^CLAUDECODE=" "$dump"'
 check 'open leaves a shared profile on ~/.claude' 'exit_is 0 add Code --claude-code shared && opened Code && ! grep -q "^CLAUDE_CONFIG_DIR=" "$dump"'
 for lock in "$tmp"/multi-claude-*.lock; do [ -f "$lock/pid" ] && kill "$(cat "$lock/pid")" 2>/dev/null; done
-check 'doctor names an inherited CLAUDE_CONFIG_DIR' 'grep -q "^CLAUDE_CONFIG_DIR: /x here; profiles never take it" <<<"$(CLAUDE_CONFIG_DIR=/x "$cli" doctor)"'
+check 'doctor names an inherited CLAUDE_CONFIG_DIR' 'grep -q "^CLAUDE_CONFIG_DIR: /x in this terminal; open drops it: each profile uses its own folder or ~/.claude$" <<<"$(CLAUDE_CONFIG_DIR=/x "$cli" doctor)"'
 check 'remove keeps the Claude Code folder'      'exit_is 0 add Code --claude-code own && exit_is 0 remove Code && exit_is 0 remove Fresh && [ -d "$own/projects" ]'
 sed -i "s#^Exec=.*#Exec=/usr/bin/claude-desktop %U#" "$XDG_DATA_HOME/applications/claude-desktop.desktop"
 printf 'not a png' > "$tmp/broken.png"

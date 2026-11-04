@@ -594,7 +594,7 @@ function Invoke-Doctor {
     }
     Say ('PowerShell mode:  ' + $ExecutionContext.SessionState.LanguageMode)
     Say ('Browser pairing:  ' + (Get-ChromePairing))
-    if ($env:CLAUDE_CONFIG_DIR) { Say "CLAUDE_CONFIG_DIR: $env:CLAUDE_CONFIG_DIR here; profiles never take it (shared means ~/.claude)" }
+    if ($env:CLAUDE_CONFIG_DIR) { Say "CLAUDE_CONFIG_DIR: $env:CLAUDE_CONFIG_DIR in this terminal; open drops it: each profile uses its own folder or ~/.claude" }
     Import-Interop
     Say ('Package context:  ' + $(if ([MultiClaude.Package]::IsPackaged()) { 'yes - run add/remove from a regular terminal' } else { 'no' }))
     Say ''

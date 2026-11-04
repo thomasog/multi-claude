@@ -358,7 +358,7 @@ cmd_doctor() {
   fi
   if command -v python3 >/dev/null; then echo "  python3: ok"; else echo "  python3: missing"; fi
   echo "Browser pairing:  $(pairing)"
-  if [[ -n ${CLAUDE_CONFIG_DIR:-} ]]; then echo "CLAUDE_CONFIG_DIR: $CLAUDE_CONFIG_DIR here; profiles never take it (shared means ~/.claude)"; fi
+  if [[ -n ${CLAUDE_CONFIG_DIR:-} ]]; then echo "CLAUDE_CONFIG_DIR: $CLAUDE_CONFIG_DIR in this terminal; open drops it: each profile uses its own folder or ~/.claude"; fi
   echo
   cmd_list
 }
