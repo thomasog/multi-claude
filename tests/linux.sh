@@ -99,6 +99,8 @@ rm "$own.new/projects"
 check 'add goes on from there'                   'exit_is 0 add Code --claude-code own && [ "$(cat "$own/projects/-work/$id.jsonl")" = transcript ] && [ -d "$own/projects/-work/$id/tool-results" ] && [ ! -e "$own.new" ]'
 rm -rf "$own"
 check 'settings with an env block are not copied' 'grep -q "was not copied: it has an env block" <<<"$("$cli" add Code --claude-code synced)" && [ ! -e "$own/settings.json" ] && [ "$(snapshot)" = "$before" ]'
+mkdir -p "$tmp/bare"   # a home whose ~/.claude has nothing to link
+check 'synced with nothing to link says list shows own' 'out=$(HOME="$tmp/bare" "$cli" add Bare --claude-code synced) && grep -qx "  Claude Code: its own settings and sessions, in $XDG_CONFIG_HOME/Claude-Bare/.claude; nothing to link from ~/.claude, so list shows it as own until there is. Run add Bare --claude-code synced again then." <<<"$out" && [ "$(code_of Bare)" = own ] && exit_is 0 remove Bare'
 bash -c 'sleep 30; :' _ "--user-data-dir=$XDG_CONFIG_HOME/Claude-Code" & running=$!
 started "$running" "--user-data-dir=$XDG_CONFIG_HOME/Claude-Code"
 check 'the mode does not change while it runs'   'exit_is 1 add Code --claude-code shared && [ -d "$own" ] && grep -q "^Quit Claude Code first" <<<"$("$cli" add Code --claude-code shared 2>&1)"'

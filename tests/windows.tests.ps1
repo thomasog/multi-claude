@@ -333,6 +333,13 @@ Test 'Claude Code: settings with an env block or a credential helper are not cop
     Set-Content (Join-Path $f.Shared 'settings.json') '{"environment": 1, "model": "opus"}'
     Assert (-not (Test-CodeSecret (Join-Path $f.Shared 'settings.json'))) 'a key that only starts with env was caught'
 }
+Test 'Claude Code: synced with nothing to link says list shows own' {
+    $f = Initialize-CodeFixture; $script:SharedCode = Join-Path $tmp ('bare-' + [guid]::NewGuid())   # nothing to link
+    $out = (Switch-ClaudeCode $f.Data 'synced' 6>&1) -join "`n"
+    $want = "  Claude Code: its own settings and sessions, in $($f.Own); nothing to link from ~/.claude, so list shows it as own until there is. Run add Code --claude-code synced again then."
+    Assert ($out -ceq $want) "got: $out"
+    Assert ((Get-CodeMode $f.Own) -eq 'own') 'list would not show own'
+}
 Test 'Claude Code: session ids are UUIDs from the profile''s own list' {
     $f = Initialize-CodeFixture
     $ids = @(Get-CodeSessionId $f.Data)

@@ -274,8 +274,13 @@ function Switch-ClaudeCode([string]$dataDir, [string]$mode) {
         [IO.File]::WriteAllText($memory, "$Stub`n")
     }
     if (Test-CodeStub $dir) { $list += 'CLAUDE.md' }
-    $shared = if ($list) { $list -join ', ' } else { 'nothing to link yet, run add again later' }
-    Say "  Claude Code: its own settings and sessions, in $dir; from ~/.claude: $shared."
+    # The folder is the setting: with no link made, list shows own. Say so rather than puzzle anyone.
+    if (-not $list) {
+        $n = (Split-Path $dataDir -Leaf) -replace '^Claude-'
+        Say "  Claude Code: its own settings and sessions, in $dir; nothing to link from ~/.claude, so list shows it as own until there is. Run add $n --claude-code synced again then."
+        return
+    }
+    Say "  Claude Code: its own settings and sessions, in $dir; from ~/.claude: $($list -join ', ')."
 }
 
 function Get-Shortcut([string]$n)   { Join-Path ([Environment]::GetFolderPath('Programs')) "Claude $n.lnk" }
