@@ -45,8 +45,7 @@ All notable changes are documented here. The format follows
 - macOS: `multi-claude list` sees a running profile from a terminal inside it.
 - macOS and Linux: a running profile is recognized when the home folder's path has characters such
   as parentheses or `+`. Before, `list` didn't show it as running, `add --claude-code` could move its
-  Claude Code folder while it ran, macOS could start it a second time, and the Linux watcher stopped
-  keeping Claude in Chrome on the regular Claude.
+  Claude Code folder while it ran, and macOS could start it a second time.
 - The sign-in advice named a "Sign in with a code" button that Claude does not show. It now says
   to open the e-mail's link in the browser, not let it open Claude, and type the code in the profile.
 
