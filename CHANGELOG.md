@@ -10,6 +10,8 @@ All notable changes are documented here. The format follows
 
 - `add` with an existing profile's name in another case (`add work --color red` for profile `Work`)
   changes that profile under its own name, as `open` and `remove` already did, instead of failing.
+- macOS: `remove` reminds you to take the profile's icon out of the Dock, as Windows does for its
+  taskbar button.
 
 ### Fixed
 

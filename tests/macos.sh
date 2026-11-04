@@ -80,7 +80,7 @@ if command -v iconutil >/dev/null && [[ -x /usr/libexec/PlistBuddy ]]; then
   started $main "MacOS/Claude --user-data-dir"
   check 'add rebuilds the launcher of a running profile' 'exit_is 0 add Work --color blue && [[ -d $app/Contents && -z $(print -l "$HOME/Applications"/.Claude*(N)) ]]'
   kill $main
-  check 'remove finds the profile in any case' 'exit_is 0 remove work && [[ ! -e $app ]]'
+  check 'remove finds the profile in any case' 'out=$(zsh "$cli" remove work) && [[ ! -e $app ]] && grep -qx "Removed Claude Work. Remove its icon from the Dock if you kept it there." <<<"$out"'
   # Another app that happens to be called "Claude <name>.app" is not ours: never touched.
   other="$HOME/Applications/Claude Notes.app"
   plist "$other" com.example.notes
