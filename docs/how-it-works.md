@@ -29,14 +29,13 @@ to `%LOCALAPPDATA%\Claude-Data\<package>`. 3.1623 and later keep a profile on th
 `--user-data-dir` names, so profiles simply see the real LocalAppData. 2.42304 finds that folder from
 `LOCALAPPDATA` alone, so there a profile started plainly would open the regular Claude's folder
 instead of its own (and, with the regular Claude open, just hand over to it). On 2.42304, once that
-move has happened, `open` starts the profile
-with `LOCALAPPDATA` pointing at a view of the real folder, `%USERPROFILE%\.multi-claude\local`: one
-junction per folder of the real LocalAppData, except Claude's own (`Claude`, `Claude-*`, `Claude Nest`,
-`AnthropicClaude`) and, under `Packages`, Claude's package. Claude finds no `Claude-Data` there and
-keeps the profile's own folder, while everything the profile starts (MCP servers, Claude Code
-sessions, terminals) still finds its usual folders, such as the npm cache, through the junctions. A
-tool that creates a brand-new folder directly in LocalAppData while a profile runs creates it in the
-view. In the view's copy of Claude's package the profile keeps its own Claude in Chrome host; the
+move has happened, `open` starts the profile with `LOCALAPPDATA` pointing at a view of the real
+folder, `%USERPROFILE%\.multi-claude\local`: one junction per folder of the real LocalAppData,
+except Claude's own (`Claude`, `Claude-*`, `Claude Nest`, `AnthropicClaude`) and, under `Packages`,
+Claude's package. Claude finds no `Claude-Data` there and keeps the profile's own folder, while
+everything the profile starts (MCP servers, Claude Code sessions, terminals) still finds its usual
+folders, such as the npm cache, through the junctions. A tool that creates a brand-new folder
+directly in LocalAppData while a profile runs creates it in the view. In the view's copy of Claude's package the profile keeps its own Claude in Chrome host; the
 watcher points the browsers back at the regular Claude, as for any profile, and puts Claude's "Open
 with" entry, which the profile writes with the alias it sees, back on the real one. `uninstall`
 removes the view's junctions, never what they point to.
@@ -72,6 +71,15 @@ shortcut carries the ID `MultiClaude.<name>` and runs `multi-claude open <name>`
 
 If tagging ever fails, the window simply appears under the regular Claude button.
 
+## Its colored icon in the Dock (macOS)
+
+The running profile is Claude itself, so its Dock icon is always Claude's. The profile's launcher is
+therefore a stay-open applet: it opens the profile, then stays in the Dock with its colored icon
+marked as running until the profile quits (it checks every 3 seconds, and quits after a minute if
+the profile never starts). Clicking it brings the profile forward as a Dock click on the profile
+would: it activates the process and sends it a reopen event, which brings back a closed window.
+`multi-claude open` from a terminal goes through the launcher too.
+
 ## Sign-in
 
 A browser sign-in returns through a `claude://` link, and the system gives that link to whichever
@@ -92,12 +100,11 @@ Browsers find Claude through one native-messaging entry per user
 (`com.anthropic.claude_browser_extension`): a registry key on Windows, a JSON manifest in each
 browser's `NativeMessagingHosts` folder on macOS and Linux. Each Claude instance writes its own
 manifest path there; on Windows, the packaged app registers it inside its package's redirected
-AppData folder. On macOS the manifest names the helper inside `Claude.app`, not a data folder, so there
-is nothing to repair. On Windows and Linux, profile launchers run `multi-claude open`, which starts a
-small watcher for as long as
-the profile is open; whenever a profile has taken the entry, the watcher points it back to the
-regular Claude's own manifest, in Chrome, Edge, Brave and Chromium. It never touches the entry if the
-regular Claude has not paired.
+AppData folder. On macOS the manifest names the helper inside `Claude.app`, not a data folder, so
+there is nothing to repair. On Windows and Linux, profile launchers run `multi-claude open`, which
+starts a small watcher for as long as the profile is open; whenever a profile has taken the entry, the
+watcher points it back to the regular Claude's own manifest, in Chrome, Edge, Brave and Chromium. It
+never touches the entry if the regular Claude has not paired.
 
 ## Installation
 
