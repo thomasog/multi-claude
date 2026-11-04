@@ -48,7 +48,8 @@ check 'add creates the desktop entry'         'exit_is 0 add Work --color blue &
 check 'entry opens the profile through multi-claude' 'grep -q "^Exec=\".*/multi-claude\" open Work$" "$entry"'
 check 'entry id matches its window class'     'grep -q "^StartupWMClass=multi-claude-work$" "$entry"'
 check 'icon was recolored'                    '[ -f "$XDG_DATA_HOME/multi-claude/profiles/Work/icon.png" ]'
-check 'same name in another case is refused'  'exit_is 64 add work'
+sum=$(md5sum < "$XDG_DATA_HOME/multi-claude/profiles/Work/icon.png")
+check 'add in another case changes that profile' 'exit_is 0 add work --color red && grep -qx "Name=Claude Work" "$entry" && grep -q " open Work$" "$entry" && [ "$(md5sum < "$XDG_DATA_HOME/multi-claude/profiles/Work/icon.png")" != "$sum" ] && [ ! -e "$XDG_CONFIG_HOME/Claude-work" ] && [ "$("$cli" list | grep -c .)" = 1 ]'
 check 'list shows the profile'                'grep -q "^Work " <<<"$("$cli" list)"'
 check 'removing an unknown profile exits 1'   'exit_is 1 remove Nope'
 check 'remove finds the profile in any case'  'exit_is 0 remove work && [ ! -f "$entry" ] && [ ! -d "$XDG_DATA_HOME/multi-claude/profiles/Work" ]'

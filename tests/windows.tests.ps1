@@ -130,6 +130,17 @@ Test 'profile of a command line' {
     }
     foreach ($c in $cases.Keys) { $got = Get-ProfileOf ([pscustomobject]@{ CommandLine = $c }); Assert ($got -eq $cases[$c]) "$c -> $got" }
 }
+Test 'a name in another case is the existing profile, for add too' {
+    $Root = Join-Path $tmp ('case-' + [guid]::NewGuid())
+    New-Item -ItemType Directory (Join-Path $Root 'profiles\Work') -Force | Out-Null
+    $saved = $script:Name
+    try {
+        $Name = 'work'; Assert-Name   # local: Test's own -name would hide the script's
+        Assert ($script:Name -ceq 'Work') "got $script:Name"
+        $script:Name = 'Other'; $Name = 'Other'; Assert-Name
+        Assert ($script:Name -ceq 'Other') 'a new name changed'
+    } finally { $script:Name = $saved }
+}
 Test 'data folder of a helper command line' {
     Assert ((Get-DataDirArgument 'x --type=gpu --user-data-dir="C:\A B\Claude-W" --x') -eq 'C:\A B\Claude-W') 'quoted'
     Assert ((Get-DataDirArgument 'x --type=crashpad --user-data-dir=C:\a\Claude-W\ /prefetch') -eq 'C:\a\Claude-W') 'unquoted'

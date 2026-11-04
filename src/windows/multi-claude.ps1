@@ -61,14 +61,13 @@ for ($i = 0; $i -lt $args.Count; $i++) {
 }
 
 # --- helpers -----------------------------------------------------------------------------------------
-# Validates the name and adopts an existing profile's spelling, so `open work` finds profile "Work".
-# For a new profile, a name that differs from an existing one only by case is refused.
-function Assert-Name([switch]$New) {
+# Validates the name and adopts an existing profile's spelling, so `open work` or `add work` acts on
+# profile "Work".
+function Assert-Name {
     if ($Name -notmatch '^[A-Za-z0-9-]{1,24}$') { Fail 'Profile name: letters, digits and dashes, up to 24 characters (e.g. Work).' 64 }
     if ($Name -in $ReservedByClaude) { Fail "The name '$Name' is reserved: Claude uses that folder itself." 64 }
     if ($Name -in $ReservedByWindows) { Fail "The name '$Name' is reserved by Windows." 64 }
     $existing = Get-ProfileName | Where-Object { $_ -eq $Name }   # -eq ignores case
-    if ($existing -and $New -and $existing -cne $Name) { Fail "A profile named '$existing' already exists; names are not case-sensitive." 64 }
     if ($existing) { $script:Name = $existing }
 }
 # Profile data lives outside AppData. The Store app virtualizes its writes there, so a folder under
@@ -393,7 +392,7 @@ function Get-OpenArgument([string]$n) {
 
 # --- commands ----------------------------------------------------------------------------------------
 function Invoke-Add {
-    Assert-Name -New
+    Assert-Name
     $code = Get-WantedCode $Name $ClaudeCode
     if (Test-CodeOnly $Name) {
         Import-Interop; Assert-NotPackaged

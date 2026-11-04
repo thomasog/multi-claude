@@ -175,7 +175,7 @@ profiles() {
   done
 }
 
-# An existing profile's spelling, so `open work` finds profile "Work".
+# An existing profile's spelling, so `open work` or `add work` acts on profile "Work".
 canonical() {
   local n
   for n in ${(f)"$(profiles)"}; do
@@ -185,14 +185,12 @@ canonical() {
 }
 
 cmd_add() {
-  local name=$1 color=$2 code hex existing
+  local name=$1 color=$2 code hex
   check_name "$name"
   code=$(code_for "$name" "$3")
   hex=${color#\#}
   [[ -z $color ]] || hex=${PALETTE[${color:l}]:-$hex}   # no lookup with an empty key
   [[ $hex =~ '^[0-9A-Fa-f]{6}$' ]] || fail "Unknown color '$color'. Use ${(j:, :)COLORS} or a hex value like C0392B." 64
-  existing=$(canonical "$name")
-  [[ $existing == "$name" ]] || fail "A profile named '$existing' already exists; names are not case-sensitive." 64
   if [[ -e $(launcher "$name") ]] && ! is_ours "$(launcher "$name")"; then
     fail "~/Applications/Claude $name.app exists and is not a multi-claude profile."
   fi
@@ -342,7 +340,7 @@ while (( $# )); do
 done
 
 case ${cmd:l} in
-  add)       cmd_add "$name" "$color" "$code" ;;
+  add)       check_name "$name"; cmd_add "$(canonical "$name")" "$color" "$code" ;;
   list)      cmd_list ;;
   open)      check_name "$name"; cmd_open "$(canonical "$name")" ;;
   remove)    check_name "$name"; cmd_remove "$(canonical "$name")" ;;

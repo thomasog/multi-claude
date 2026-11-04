@@ -149,7 +149,7 @@ set_code() {
   echo "  Claude Code: its own settings and sessions, in $dir; from ~/.claude: ${list:-nothing to link yet, run add again later}."
 }
 
-# An existing profile's spelling, so `open work` finds profile "Work".
+# An existing profile's spelling, so `open work` or `add work` acts on profile "Work".
 canonical() {
   local name
   if [[ -f $(entry_of "$1") ]]; then name=$(entry_key "$(entry_of "$1")" Name); echo "${name#Claude }"; else echo "$1"; fi
@@ -193,7 +193,7 @@ claude_icon() {
 }
 
 cmd_add() {
-  local name=$1 color=$2 code=${3,,} hex entry icon dir existing colored
+  local name=$1 color=$2 code=${3,,} hex entry icon dir colored
   check_name "$name"
   case $code in
     own|synced|shared) ;;
@@ -203,12 +203,8 @@ cmd_add() {
   hex=${color#\#}
   [[ -z $color ]] || hex=${PALETTE[${color,,}]:-$hex}   # an empty key is a bash error
   [[ $hex =~ ^[0-9A-Fa-f]{6}$ ]] || fail "Unknown color '$color'. Use $COLORS or a hex value like C0392B." 64
-  if [[ -f $(entry_of "$name") ]]; then
-    existing=$(entry_key "$(entry_of "$name")" Name); existing=${existing#Claude }
-    [[ $existing == "$name" ]] || fail "A profile named '$existing' already exists; names are not case-sensitive." 64
-    # --claude-code alone on an existing profile changes only that: nothing records its color.
-    if [[ -n $3 && $color_given == 0 ]]; then check_code "$name" "$code"; set_code "$name" "$code"; return; fi
-  fi
+  # --claude-code alone on an existing profile changes only that: nothing records its color.
+  if [[ -f $(entry_of "$name") && -n $3 && $color_given == 0 ]]; then check_code "$name" "$code"; set_code "$name" "$code"; return; fi
   entry=$(claude_entry) || fail "$NOT_FOUND"
   icon=$(claude_icon "$entry") || fail "Could not find Claude's icon ($(entry_key "$entry" Icon))."
   command -v python3 >/dev/null || fail "python3 is required to color the icon."
@@ -320,7 +316,7 @@ while (( $# )); do
 done
 
 case ${cmd,,} in
-  add)       cmd_add "$name" "$color" "$code" ;;
+  add)       check_name "$name"; cmd_add "$(canonical "$name")" "$color" "$code" ;;
   list)      cmd_list ;;
   open)      check_name "$name"; cmd_open "$(canonical "$name")" ;;
   remove)    check_name "$name"; cmd_remove "$(canonical "$name")" ;;

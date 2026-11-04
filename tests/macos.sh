@@ -72,7 +72,8 @@ if command -v iconutil >/dev/null && [[ -x /usr/libexec/PlistBuddy ]]; then
   check 'the launcher has the colored icon'   '[[ -s $app/Contents/Resources/applet.icns ]]'
   check 'the launcher stays open while the profile runs' '[[ $(/usr/libexec/PlistBuddy -c "Print :OSAAppletStayOpen" "$app/Contents/Info.plist") == true ]]'
   check 'list shows the profile'              'grep -q "^Work " <<<"$(zsh "$cli" list)"'
-  check 'same name in another case is refused' 'exit_is 64 add work'
+  sum=$(cksum < "$app/Contents/Resources/applet.icns")
+  check 'add in another case changes that profile' 'exit_is 0 add work --color red && [[ $(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$app/Contents/Info.plist") == "Claude Work" && $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Contents/Info.plist") == io.github.thomasog.multi-claude.Work && $(cksum < "$app/Contents/Resources/applet.icns") != $sum && $(zsh "$cli" list | grep -c .) == 1 ]]'
   check 'remove finds the profile in any case' 'exit_is 0 remove work && [[ ! -e $app ]]'
   # Another app that happens to be called "Claude <name>.app" is not ours: never touched.
   other="$HOME/Applications/Claude Notes.app"
