@@ -50,8 +50,10 @@ jobs:
           & $mc help; if ($LASTEXITCODE) { exit 1 }
           if (-not (& $onPath)) { throw 'bin is not on the user PATH' }
           & $mc uninstall; if ($LASTEXITCODE) { exit 1 }
-          Start-Sleep -Seconds 8
-          if (Test-Path (Join-Path $env:USERPROFILE '.multi-claude')) { throw '.multi-claude is still there' }
+          # uninstall deletes its folders a moment after it exits: wait for that, up to 30 s.
+          $gone = $false
+          for ($i = 0; $i -lt 60 -and -not $gone; $i++) { Start-Sleep -Milliseconds 500; $gone = -not (Test-Path (Join-Path $env:USERPROFILE '.multi-claude')) }
+          if (-not $gone) { throw '.multi-claude is still there after 30 s' }
           if (& $onPath) { throw 'bin is still on the user PATH' }
 
   macos:
