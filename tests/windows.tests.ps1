@@ -51,6 +51,17 @@ Test 'recolor keeps the white glyph white' {
 Test 'recolor keeps transparency' {
     Assert (([MultiClaude.Icon]::Recolor($logo, [Drawing.Color]::Green)).GetPixel(0, 0).A -eq 0) 'corner is no longer transparent'
 }
+Test 'every palette color lands on the background, the glyph stays white' {
+    foreach ($hex in '1F6F43', '1F4E8C', '5B3A8E', '9B2C2C', '146C6C', 'A0346B', '4A4F57') {   # the palette; test_recolor.py checks the CLIs agree
+        $rgb = [Convert]::ToInt32($hex, 16)
+        $out = [MultiClaude.Icon]::Recolor($logo, [Drawing.Color]::FromArgb(($rgb -shr 16) -band 255, ($rgb -shr 8) -band 255, $rgb -band 255))
+        $bg = $out.GetPixel(4, 4); $glyph = $out.GetPixel(32, 32)
+        $off = [math]::Max([math]::Max([math]::Abs($bg.R - (($rgb -shr 16) -band 255)), [math]::Abs($bg.G - (($rgb -shr 8) -band 255))), [math]::Abs($bg.B - ($rgb -band 255)))
+        Assert ($off -le 2) "$hex`: background $bg is $off off"
+        Assert ($glyph.R -gt 240 -and $glyph.G -gt 240 -and $glyph.B -gt 240) "$hex`: glyph became $glyph"
+        $out.Dispose()
+    }
+}
 Test 'ico has 10 PNG frames, 16 to 256 px' {
     $ico = Join-Path $tmp 'x.ico'
     [MultiClaude.Icon]::SaveIco([MultiClaude.Icon]::Recolor($logo, [Drawing.Color]::Green), $ico)
