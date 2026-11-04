@@ -32,6 +32,7 @@ multi-claude $Version - several Claude Desktop accounts side by side
                                               new profile, or change one: own sign-in, icon and taskbar button
   multi-claude list                           installed profiles
   multi-claude open <name>                    open a profile (what its shortcut runs)
+  multi-claude code <name> [claude arguments]  Claude Code in this terminal, on the profile's own folder
   multi-claude remove <name>                  remove a profile (its sign-in data is kept)
   multi-claude doctor [--selftest]            check this PC
   multi-claude uninstall                      remove multi-claude and every profile shortcut
@@ -42,8 +43,10 @@ agents, commands, output styles and CLAUDE.md from ~/.claude) or shared (~/.clau
 "@
 
 # --- arguments ---------------------------------------------------------------------------------------
-$Command = $null; $Name = $null; $Color = 'green'; $ColorGiven = $false; $ClaudeCode = $null; $Preview = $null; $SelfTest = $false
+$Command = $null; $Name = $null; $Color = 'green'; $ColorGiven = $false; $ClaudeCode = $null; $Preview = $null; $SelfTest = $false; $Rest = @()
 for ($i = 0; $i -lt $args.Count; $i++) {
+    # `code <name>` hands everything after the name to claude, options included.
+    if ($Command -eq 'code' -and $Name) { $Rest = @($args[$i..($args.Count - 1)]); break }
     switch -Regex ([string]$args[$i]) {
         '^(-c|--color)$' { if ($i + 1 -ge $args.Count) { Fail '--color needs a value.' 64 }; $Color = [string]$args[++$i]; $ColorGiven = $true; break }
         '^--claude-code$' { if ($i + 1 -ge $args.Count) { Fail '--claude-code needs a value.' 64 }; $ClaudeCode = [string]$args[++$i]; break }
@@ -470,6 +473,23 @@ function Invoke-Remove {
     Say "Its sign-in data is kept in $(Find-DataDir $Name) - delete that folder to sign out for good."
 }
 
+# Claude Code in this terminal on the profile's own folder: everything after the name goes to claude
+# untouched, and its exit code is ours. Sign-ins are claude's own business, here as elsewhere.
+function Invoke-Code {
+    Assert-Name
+    if (-not (Test-Path (Get-ProfileDir $Name))) { Fail "No profile named '$Name'." }
+    $claude = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $claude) { Fail "Claude Code''s claude command is not on the PATH. Install Claude Code, or add its folder to the PATH." }
+    # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to claude.
+    Get-ChildItem Env: | Where-Object Name -Match '^(CLAUDE|ANTHROPIC)' | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" }
+    $dir = Get-CodeDir $Name
+    if (Test-Path -LiteralPath $dir -PathType Container) { $env:CLAUDE_CONFIG_DIR = $dir }
+    else { [Console]::Error.WriteLine("Claude $Name shares ~/.claude, so this Claude Code does too.") }
+    $ErrorActionPreference = 'Continue'   # with Stop, Windows PowerShell turns claude's redirected stderr into an error
+    & $claude.Source @Rest
+    exit $LASTEXITCODE
+}
+
 function Invoke-Open {
     Assert-Name
     if (-not (Test-Path (Get-ProfileDir $Name))) { Fail "No profile named '$Name'." }
@@ -658,6 +678,7 @@ switch ($Command) {
     'list'      { Invoke-List }
     'open'      { Invoke-Open }
     'remove'    { Invoke-Remove }
+    'code'      { Invoke-Code }
     'doctor'    { Invoke-Doctor }
     'uninstall' { Invoke-Uninstall }
     'version'   { Say "multi-claude $Version" }

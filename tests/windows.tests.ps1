@@ -118,6 +118,31 @@ Test 'open moves old profile data out of AppData, once' {
     Assert ((Get-Content (Join-Path $home2 '.multi-claude\profiles\Mig\open.log') -Raw) -match 'moved the profile') 'the move was not logged'
 }
 
+Test 'code runs claude on the profile''s own folder, its arguments untouched' {
+    $home2 = Join-Path $tmp 'code-home'; $local2 = Join-Path $tmp 'code-local'; $bin = Join-Path $tmp 'code-bin'
+    $own = Join-Path $home2 '.multi-claude\data\Claude-Work\.claude'
+    New-Item -ItemType Directory (Join-Path $home2 '.multi-claude\profiles\Work'), $own, $bin, $local2 -Force | Out-Null
+    # A fake claude: writes down its environment and arguments, then exits 7.
+    Set-Content (Join-Path $bin 'claude.cmd') -Encoding Ascii -Value '@echo off', 'set > "%~dp0env.txt"', 'echo(%*> "%~dp0args.txt"', 'exit /b 7'
+    $saved = $env:Path, $env:CLAUDECODE, $env:ANTHROPIC_API_KEY, $env:CLAUDE_CONFIG_DIR
+    try {
+        $env:Path = "$bin;$env:Path"; $env:CLAUDECODE = '1'; $env:ANTHROPIC_API_KEY = 'x'; $env:CLAUDE_CONFIG_DIR = 'C:\inherited'
+        Assert ((Invoke-CliIn $home2 $local2 code work -p 'hello world' --resume --) -eq 7) 'claude''s exit code was not ours'
+        $vars = @(Get-Content (Join-Path $bin 'env.txt'))
+        Assert ($vars -contains "CLAUDE_CONFIG_DIR=$own") "got $($vars -match '^CLAUDE_CONFIG_DIR=')"
+        Assert (-not ($vars -match '^(CLAUDECODE|ANTHROPIC_API_KEY)=')) 'inherited variables reached claude'
+        $passed = Get-Content (Join-Path $bin 'args.txt')
+        Assert ($passed -ceq '-p "hello world" --resume --') "arguments: $passed"
+        Remove-Item -LiteralPath $own
+        Assert ((Invoke-CliIn $home2 $local2 code Work) -eq 7) 'a shared profile did not run claude'
+        Assert (-not (@(Get-Content (Join-Path $bin 'env.txt')) -match '^CLAUDE_CONFIG_DIR=')) 'a shared profile got CLAUDE_CONFIG_DIR'
+        Assert ((Invoke-CliIn $home2 $local2 code Nope) -eq 1) 'an unknown profile should exit 1'
+        $env:Path = Join-Path $env:windir 'System32'
+        Assert ((Invoke-CliIn $home2 $local2 code Work) -eq 1) 'claude missing from the PATH should exit 1'
+    } finally { $env:Path, $env:CLAUDECODE, $env:ANTHROPIC_API_KEY, $env:CLAUDE_CONFIG_DIR = $saved }
+}
+Test 'code without a name exits 64' { Assert ((Invoke-Cli code) -eq 64) 'expected 64' }
+
 Write-Host 'internals'
 # Dot-sourced without arguments the CLI only prints its usage, so its functions can be tested here.
 . $cli 6>$null

@@ -114,6 +114,21 @@ sed -i "s#^Exec=.*#Exec=\"$tmp/bin/fake-claude\" %U#" "$XDG_DATA_HOME/applicatio
 opened() { rm -f "$dump"; CLAUDE_CONFIG_DIR=/inherited CLAUDECODE=1 "$cli" open "$1" || return 1; for _ in $(seq 50); do [ -f "$dump" ] && return 0; sleep 0.1; done; return 1; }
 check 'open runs Code on the own folder'          'opened Code && grep -qx "CLAUDE_CONFIG_DIR=$own" "$dump" && grep -qx "ARG --user-data-dir=$XDG_CONFIG_HOME/Claude-Code" "$dump" && ! grep -q "^CLAUDECODE=" "$dump"'
 check 'open leaves a shared profile on ~/.claude' 'exit_is 0 add Code --claude-code shared && opened Code && ! grep -q "^CLAUDE_CONFIG_DIR=" "$dump"'
+# code: a fake claude on the PATH that writes down its environment and arguments, then exits 7.
+cdump=$tmp/code.dump
+printf '#!/bin/sh\n{ env | grep -E "^(CLAUDE|ANTHROPIC)"; for a in "$@"; do echo "ARG <$a>"; done; } > '\''%s'\''\nexit 7\n' "$cdump" > "$tmp/bin/claude"
+chmod +x "$tmp/bin/claude"
+coded() { rm -f "$cdump"; PATH="$tmp/bin:/usr/bin:/bin" CLAUDE_CONFIG_DIR=/inherited CLAUDECODE=1 ANTHROPIC_API_KEY=x "$cli" code "$@"; }
+expected=$(printf 'CLAUDE_CONFIG_DIR=%s\nARG <-p>\nARG <hello world>\nARG <>\nARG <--resume>\nARG <-->\nARG <-v>' "$own")
+check 'code runs claude on the own folder, its arguments untouched' 'exit_is 0 add Code --claude-code own; coded code -p "hello world" "" --resume -- -v >/dev/null 2>&1; [ $? -eq 7 ] && [ "$(cat "$cdump")" = "$expected" ]'
+check 'code on a shared profile uses ~/.claude and says so' 'exit_is 0 add Code --claude-code shared; err=$(coded Code 2>&1 >/dev/null); [ "$err" = "Claude Code shares ~/.claude, so this Claude Code does too." ] && [ -f "$cdump" ] && [ -z "$(cat "$cdump")" ]'
+check 'code of an unknown profile exits 1'       'exit_is 1 code Nope && grep -qx "No profile named '"'Nope'"'." <<<"$("$cli" code Nope 2>&1)"'
+check 'code without a name exits 64'             'exit_is 64 code'
+if PATH=/usr/bin:/bin command -v claude >/dev/null; then
+  echo '  skip code without claude on the PATH (this machine has claude in /usr/bin or /bin)'
+else
+  check 'code without claude on the PATH exits 1' 'out=$(PATH=/usr/bin:/bin "$cli" code Code 2>&1); [ $? -eq 1 ] && [ "$out" = "Claude Code'"'"'s claude command is not on the PATH. Install Claude Code, or add its folder to the PATH." ]'
+fi
 check 'doctor names an inherited CLAUDE_CONFIG_DIR' 'grep -q "^CLAUDE_CONFIG_DIR: /x in this terminal; open drops it: each profile uses its own folder or ~/.claude$" <<<"$(CLAUDE_CONFIG_DIR=/x "$cli" doctor)"'
 check 'remove keeps the Claude Code folder'      'exit_is 0 add Code --claude-code own && exit_is 0 remove Code && exit_is 0 remove Fresh && [ -d "$own/projects" ]'
 sed -i "s#^Exec=.*#Exec=/usr/bin/claude-desktop %U#" "$XDG_DATA_HOME/applications/claude-desktop.desktop"
