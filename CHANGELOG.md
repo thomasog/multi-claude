@@ -6,6 +6,8 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-03
+
 ### Added
 
 - Claude Code per profile: `add <name> --claude-code own|synced|shared`. `own`, the default for new
@@ -16,8 +18,6 @@ All notable changes are documented here. The format follows
   with an `env` block or a credential helper). `shared` keeps `~/.claude`; existing profiles stay on
   it until changed. Switching copies the profile's own sessions from `~/.claude` and never changes
   it. `list` shows each profile's mode.
-
-## [0.1.6] - 2026-11-03
 
 ### Fixed
 
