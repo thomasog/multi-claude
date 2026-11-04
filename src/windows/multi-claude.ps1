@@ -484,7 +484,7 @@ function Invoke-Code {
     Assert-Name
     if (-not (Test-Path (Get-ProfileDir $Name))) { Fail "No profile named '$Name'." }
     $claude = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $claude) { Fail "Claude Code''s claude command is not on the PATH. Install Claude Code, or add its folder to the PATH." }
+    if (-not $claude) { Fail "Claude Code's claude command is not on the PATH. Install Claude Code, or add its folder to the PATH." }
     # Started from inside a Claude session, we would hand its CLAUDE_*/ANTHROPIC_* variables to claude.
     Get-ChildItem Env: | Where-Object Name -Match '^(CLAUDE|ANTHROPIC)' | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" }
     $dir = Get-CodeDir $Name
