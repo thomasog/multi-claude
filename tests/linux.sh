@@ -49,7 +49,9 @@ check 'entry opens the profile through multi-claude' 'grep -q "^Exec=\".*/multi-
 check 'entry id matches its window class'     'grep -q "^StartupWMClass=multi-claude-work$" "$entry"'
 check 'icon was recolored'                    '[ -f "$XDG_DATA_HOME/multi-claude/profiles/Work/icon.png" ]'
 sum=$(md5sum < "$XDG_DATA_HOME/multi-claude/profiles/Work/icon.png")
+ino=$(stat -c %i "$entry")
 check 'add in another case changes that profile' 'exit_is 0 add work --color red && grep -qx "Name=Claude Work" "$entry" && grep -q " open Work$" "$entry" && [ "$(md5sum < "$XDG_DATA_HOME/multi-claude/profiles/Work/icon.png")" != "$sum" ] && [ ! -e "$XDG_CONFIG_HOME/Claude-work" ] && [ "$("$cli" list | grep -c .)" = 1 ]'
+check 'add writes the launcher aside, then moves it in' '[ "$(stat -c %i "$entry")" != "$ino" ] && [ "$(stat -c %a "$entry")" = 644 ] && [ -z "$(ls -A "$XDG_DATA_HOME/applications" | grep "^\.")" ]'
 check 'list shows the profile'                'grep -q "^Work " <<<"$("$cli" list)"'
 check 'removing an unknown profile exits 1'   'exit_is 1 remove Nope'
 check 'remove finds the profile in any case'  'exit_is 0 remove work && [ ! -f "$entry" ] && [ ! -d "$XDG_DATA_HOME/multi-claude/profiles/Work" ]'

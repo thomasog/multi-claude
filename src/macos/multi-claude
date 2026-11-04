@@ -244,7 +244,14 @@ cmd_add() {
   plist_set "$plist" CFBundleIdentifier "$BUNDLE_PREFIX.$name"
   plist_set "$plist" CFBundleName "Claude $name"
   codesign --force -s - "$built" >/dev/null 2>&1 || true   # resources changed: re-sign ad hoc, locally
-  mkdir -p "$APPS"; rm -rf "$app"; mv "$built" "$app"
+  # The old launcher stays until the new one is complete beside it; then two renames swap them. A
+  # running profile's launcher keeps running from the old copy until it quits, as before.
+  local new="$APPS/.Claude $name.new" old="$APPS/.Claude $name.old"
+  mkdir -p "$APPS"; rm -rf "$new" "$old"
+  mv "$built" "$new"
+  if [[ -e $app ]]; then mv "$app" "$old"; fi
+  mv "$new" "$app"
+  rm -rf "$old"
   touch "$app"
 
   print "

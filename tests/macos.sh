@@ -74,6 +74,12 @@ if command -v iconutil >/dev/null && [[ -x /usr/libexec/PlistBuddy ]]; then
   check 'list shows the profile'              'grep -q "^Work " <<<"$(zsh "$cli" list)"'
   sum=$(cksum < "$app/Contents/Resources/applet.icns")
   check 'add in another case changes that profile' 'exit_is 0 add work --color red && [[ $(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$app/Contents/Info.plist") == "Claude Work" && $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Contents/Info.plist") == io.github.thomasog.multi-claude.Work && $(cksum < "$app/Contents/Resources/applet.icns") != $sum && $(zsh "$cli" list | grep -c .) == 1 ]]'
+  touch "$app/kept"
+  check 'add swaps the launcher in whole'      'exit_is 0 add Work --color teal && [[ -d $app/Contents && ! -e $app/kept && -z $(print -l "$HOME/Applications"/.Claude*(N)) ]]'
+  ( exec -a "$MULTI_CLAUDE_CLAUDE_APP/Contents/MacOS/Claude --user-data-dir=$HOME/Library/Application Support/Claude-Work" sleep 30 ) & main=$!
+  started $main "MacOS/Claude --user-data-dir"
+  check 'add rebuilds the launcher of a running profile' 'exit_is 0 add Work --color blue && [[ -d $app/Contents && -z $(print -l "$HOME/Applications"/.Claude*(N)) ]]'
+  kill $main
   check 'remove finds the profile in any case' 'exit_is 0 remove work && [[ ! -e $app ]]'
   # Another app that happens to be called "Claude <name>.app" is not ours: never touched.
   other="$HOME/Applications/Claude Notes.app"

@@ -15,6 +15,8 @@ All notable changes are documented here. The format follows
 
 - A `.claude.new` folder left by an interrupted Claude Code copy is deleted once the profile's
   folder is in place, also when a parked `.claude.off` came back instead.
+- macOS and Linux: an interrupted `add` no longer leaves a broken launcher. Linux writes the desktop
+  entry aside and moves it in; macOS keeps the old launcher until the new one is complete beside it.
 
 ## [0.1.6] - 2026-11-04
 

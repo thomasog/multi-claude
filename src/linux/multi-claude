@@ -194,7 +194,7 @@ claude_icon() {
 }
 
 cmd_add() {
-  local name=$1 color=$2 code=${3,,} hex entry icon dir colored
+  local name=$1 color=$2 code=${3,,} hex entry icon dir colored part
   check_name "$name"
   case $code in
     own|synced|shared) ;;
@@ -218,7 +218,9 @@ cmd_add() {
   python3 "$HERE/recolor.py" "$icon" "$colored" "$hex" || { rm -f "$colored"; exit 1; }
   chmod 644 "$colored"
   mkdir -p "$dir" && mv -f "$colored" "$dir/icon.png"
-  cat > "$(entry_of "$name")" <<EOF
+  # Written aside, then moved in, so an interrupted add never leaves a half-written launcher.
+  part=$(mktemp "$ENTRIES/.$(app_id "$name").XXXXXX")
+  cat > "$part" <<EOF || { rm -f "$part"; exit 1; }
 [Desktop Entry]
 Type=Application
 Name=Claude $name
@@ -229,6 +231,7 @@ StartupWMClass=$(app_id "$name")
 Categories=Office;Utility;
 Terminal=false
 EOF
+  chmod 644 "$part" && mv -f "$part" "$(entry_of "$name")"
   if command -v update-desktop-database >/dev/null; then update-desktop-database "$ENTRIES" 2>/dev/null || true; fi
 
   echo "
