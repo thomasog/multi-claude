@@ -89,6 +89,9 @@ More: [how it works](docs/how-it-works.md) · [troubleshooting](docs/troubleshoo
 
 ## FAQ
 
+**Is this the Multi-Claude Mac app sold at multiclaude.app?**
+No. This is an unrelated, free and open-source project that happens to share the name.
+
 **How is this different from an account switcher?**
 Account switchers keep one Claude open and swap its sign-in when you pick another account, which
 restarts Claude (and closes every Claude window, profiles included). multi-claude keeps every account
