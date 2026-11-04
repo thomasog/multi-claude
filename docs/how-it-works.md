@@ -54,12 +54,14 @@ the regular Claude button if it is not the profile's own.
 `add` takes the Claude icon already installed on the computer and recolors it, so no artwork ships
 with this project.
 
-- **Windows and Linux** use the same algorithm: every colored pixel takes the target hue, saturation
-  and brightness are scaled so the logo's brand color lands exactly on the target, and the white
-  glyph stays white. Windows does it in C# (`System.Drawing`, compiled in memory) and writes a
-  multi-size `.ico`; Linux does it with a small standard-library Python PNG reader and writer.
-- **macOS** gets close with built-in Core Image filters (hue, saturation, gamma), run through
-  JavaScript for Automation, then builds the `.icns` with `sips` and `iconutil`.
+All three systems use the same algorithm: every colored pixel takes the target hue, saturation and
+brightness are scaled so the logo's brand color lands exactly on the target, and the white glyph
+stays white.
+
+- **Windows** does it in C# (`System.Drawing`, compiled in memory) and writes a multi-size `.ico`.
+- **Linux** does it with a small standard-library Python PNG reader and writer.
+- **macOS** does it in JavaScript for Automation, built into the system, then builds the `.icns` with
+  `sips` and `iconutil`.
 
 ## Its own taskbar button (Windows)
 

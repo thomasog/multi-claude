@@ -19,6 +19,9 @@ All notable changes are documented here. The format follows
 
 - A `.claude.new` folder left by an interrupted Claude Code copy is deleted once the profile's
   folder is in place, also when a parked `.claude.off` came back instead.
+- macOS: icons now land on the chosen color, with the algorithm Windows and Linux use. Purple came
+  out blue, and green, teal and gray almost black. To update a profile, run
+  `multi-claude add <name> --color <color>` again.
 - macOS and Linux: an interrupted `add` no longer leaves a broken launcher. Linux writes the desktop
   entry aside and moves it in; macOS keeps the old launcher until the new one is complete beside it.
   `uninstall` clears anything an interrupted `add` left.

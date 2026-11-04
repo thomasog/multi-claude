@@ -1,5 +1,5 @@
 #!/bin/zsh
-# macOS tests: argument handling, the Core Image recolor and `add` with a fake Claude.app; no Claude
+# macOS tests: argument handling, the recolor and `add` with a fake Claude.app; no Claude
 # needed. Run: zsh tests/macos.sh
 set -uo pipefail
 repo=${0:A:h:h}
@@ -36,20 +36,41 @@ check 'extra argument exits 64'             'exit_is 64 add Work extra'
 check 'removing an unknown profile exits 1' 'exit_is 1 remove NoSuchProfile'
 check 'opening an unknown profile exits 1'  'exit_is 1 open NoSuchProfile'
 
-# Recolor a synthetic orange PNG and check that the background lands near the target hue.
-python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import recolor; \
-recolor.write_png(sys.argv[2], 32, 32, [[(217, 119, 87, 255)] * 32 for _ in range(32)])" \
-  "$repo/src/linux" "$tmp/source.png"
-check 'recolor.js writes a PNG' 'osascript -l JavaScript "$repo/src/macos/recolor.js" "$tmp/source.png" "$tmp/out.png" 1F4E8C && [[ -s $tmp/out.png ]]'
-check 'recolor reaches the target hue' 'python3 - "$repo/src/linux" "$tmp/out.png" <<"PY"
-import colorsys, sys
+# A logo-like PNG: orange, a white glyph, a fade between them, a clear corner and a soft edge.
+python3 - "$repo/src/linux" "$tmp/source.png" <<"PY"
+import sys
 sys.path.insert(0, sys.argv[1])
 import recolor
-r, g, b, _ = recolor.read_png(sys.argv[2])[2][16][16]
-hue = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)[0] * 360
-print(f"       background hue {hue:.0f}, target 214")
-sys.exit(0 if abs(hue - 214) < 25 else 1)
-PY'
+orange, white = (217, 119, 87), (255, 255, 255)
+def pixel(x, y):
+    if x == 0 and y == 0: return (0, 0, 0, 0)
+    if x == 31: return orange + (128,)
+    if 12 <= x < 20 and 12 <= y < 20:
+        return tuple(o + (w - o) * (x - 11) // 8 for o, w in zip(orange, white)) + (255,)
+    return orange + (255,)
+recolor.write_png(sys.argv[2], 32, 32, [[pixel(x, y) for x in range(32)] for y in range(32)])
+PY
+check 'recolor.js writes a PNG' 'osascript -l JavaScript "$repo/src/macos/recolor.js" "$tmp/source.png" "$tmp/out.png" 1F4E8C && [[ -s $tmp/out.png ]]'
+# Every color of the palette, against the algorithm Windows and Linux share.
+same_as_python() {
+  local hex
+  for hex in 1F6F43 1F4E8C 5B3A8E 9B2C2C 146C6C A0346B 4A4F57; do
+    osascript -l JavaScript "$repo/src/macos/recolor.js" "$tmp/source.png" "$tmp/out.png" $hex || return 1
+    python3 "$repo/src/linux/recolor.py" "$tmp/source.png" "$tmp/expected.png" $hex || return 1
+    python3 - "$repo/src/linux" "$tmp/out.png" "$tmp/expected.png" $hex <<"PY" || return 1
+import sys
+sys.path.insert(0, sys.argv[1])
+import recolor
+out, expected, hex_color = recolor.read_png(sys.argv[2])[2], recolor.read_png(sys.argv[3])[2], sys.argv[4]
+worst = max(abs(a - b) for row, other in zip(out, expected) for p, q in zip(row, other) if q[3] for a, b in zip(p, q))
+target = tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+background = max(abs(a - b) for a, b in zip(out[4][4], target))
+print(f"       {hex_color}: off by {worst} from recolor.py, background off by {background}")
+sys.exit(0 if worst <= 2 and background <= 2 else 1)
+PY
+  done
+}
+check 'recolor matches Windows and Linux and lands on the palette' 'same_as_python'
 # A fake Claude.app with a real .icns, so `add` builds a launcher. macOS tools only.
 if command -v iconutil >/dev/null && [[ -x /usr/libexec/PlistBuddy ]]; then
   mkdir -p "$tmp/claude.iconset" "$MULTI_CLAUDE_CLAUDE_APP/Contents/Resources"

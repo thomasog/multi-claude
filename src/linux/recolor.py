@@ -5,7 +5,8 @@
 
 Every colored pixel takes the target hue; saturation and brightness are scaled so the logo's own
 brand color lands exactly on the target, while near-white pixels (the glyph) stay light. Same
-algorithm as src/windows/MultiClaude.cs. Reads non-interlaced 8-bit RGB/RGBA PNGs and palette PNGs.
+algorithm as src/windows/MultiClaude.cs and src/macos/recolor.js. Reads non-interlaced 8-bit
+RGB/RGBA PNGs and palette PNGs.
 """
 
 import colorsys
