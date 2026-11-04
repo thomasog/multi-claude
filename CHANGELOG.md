@@ -6,12 +6,14 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-04
+
 ### Changed
 
 - `add` with an existing profile's name in another case (`add work --color red` for profile `Work`)
   changes that profile under its own name, as `open` and `remove` already did, instead of failing.
-- macOS: `remove` reminds you to take the profile's icon out of the Dock, as Windows does for its
-  taskbar button.
+- macOS and Linux: `remove` reminds you to take the profile's icon out of the dock, as Windows does
+  for its taskbar button.
 
 ### Fixed
 
@@ -19,6 +21,7 @@ All notable changes are documented here. The format follows
   folder is in place, also when a parked `.claude.off` came back instead.
 - macOS and Linux: an interrupted `add` no longer leaves a broken launcher. Linux writes the desktop
   entry aside and moves it in; macOS keeps the old launcher until the new one is complete beside it.
+  `uninstall` clears anything an interrupted `add` left.
 
 ## [0.1.6] - 2026-11-04
 
@@ -166,7 +169,8 @@ All notable changes are documented here. The format follows
 - Installers that download a versioned release and verify it against the SHA-256 written into them,
   with build provenance attestations, and offer to add a profile with a color picker.
 
-[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/thomasog/multi-claude/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/thomasog/multi-claude/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/thomasog/multi-claude/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/thomasog/multi-claude/compare/v0.1.3...v0.1.4
