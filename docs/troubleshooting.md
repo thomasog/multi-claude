@@ -76,6 +76,10 @@ add it again.
 multi-claude looks for the official desktop entry named `Claude` or `Claude Desktop`.
 `multi-claude doctor` shows what it found.
 
+**Linux: `multi-claude list` never shows a profile as running.**
+multi-claude finds running profiles with `pgrep`, from the `procps` package: install it. Without it,
+`add --claude-code` can't tell that a profile is open either, so quit the profile first.
+
 **Claude Code in a profile doesn't see my skills, settings or MCP servers.**
 The profile has its own Claude Code folder (mode `own`, the default for new profiles). Run
 `multi-claude add <name> --claude-code synced` to bring in your skills, agents, commands, output
