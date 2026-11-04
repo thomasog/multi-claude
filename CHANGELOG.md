@@ -19,6 +19,22 @@ All notable changes are documented here. The format follows
   it until changed. Switching copies the profile's own sessions from `~/.claude` and never changes
   it. `list` shows each profile's mode.
 
+### Changed
+
+- macOS: a profile's launcher stays open while the profile runs, so the Dock shows its colored icon
+  as running and clicking it brings that profile forward, with its window back if it was closed.
+  `multi-claude open` goes through it too. Older launchers keep working as before; to get this,
+  rebuild each one with `multi-claude add <name> --color <its color>`.
+- Releases are published only once every file is attached, so the latest-release links never point
+  at a release that is still uploading.
+- macOS and Linux test-report issue templates, linked from the README, to get multi-claude tested
+  on real machines.
+
+### Removed
+
+- macOS: the Claude in Chrome watcher and the pairing line of `doctor`. Claude names a helper inside
+  `Claude.app` there, not a data folder, so they had nothing to repair.
+
 ### Fixed
 
 - macOS: opening a profile that is already open brings it to the front. It used to start a second
@@ -32,22 +48,6 @@ All notable changes are documented here. The format follows
   keeping Claude in Chrome on the regular Claude.
 - The sign-in advice named a "Sign in with a code" button that Claude does not show. It now says
   to open the e-mail's link in the browser, not let it open Claude, and type the code in the profile.
-
-### Removed
-
-- macOS: the Claude in Chrome watcher and the pairing line of `doctor`. Claude names a helper inside
-  `Claude.app` there, not a data folder, so they had nothing to repair.
-
-### Changed
-
-- macOS: a profile's launcher stays open while the profile runs, so the Dock shows its colored icon
-  as running and clicking it brings that profile forward, with its window back if it was closed.
-  `multi-claude open` goes through it too. Older launchers keep working as before; to get this,
-  rebuild each one with `multi-claude add <name> --color <its color>`.
-- Releases are published only once every file is attached, so the latest-release links never point
-  at a release that is still uploading.
-- macOS and Linux test-report issue templates, linked from the README, to get multi-claude tested
-  on real machines.
 
 ## [0.1.5] - 2026-10-20
 
