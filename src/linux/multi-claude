@@ -147,7 +147,9 @@ set_code() {
   if [[ -f $SHARED/CLAUDE.md && ! -e $dir/CLAUDE.md ]]; then echo "$STUB" > "$dir/CLAUDE.md"; fi
   if is_stub "$dir"; then list+="CLAUDE.md, "; fi
   list=${list%, }
-  echo "  Claude Code: its own settings and sessions, in $dir; from ~/.claude: ${list:-nothing to link yet, run add again later}."
+  # The folder is the setting: with no link made, list shows own. Say so rather than puzzle anyone.
+  if [[ -z $list ]]; then echo "  Claude Code: its own settings and sessions, in $dir; nothing to link from ~/.claude, so list shows it as own until there is. Run add $name --claude-code synced again then."; return; fi
+  echo "  Claude Code: its own settings and sessions, in $dir; from ~/.claude: $list."
 }
 
 # An existing profile's spelling, so `open work` or `add work` acts on profile "Work".

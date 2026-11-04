@@ -209,6 +209,8 @@ code --claude-code shared >/dev/null; mkdir -p "$own.new/projects"; : > "$own.ne
 check 'a leftover .claude.new goes once the parked folder is back' 'code --claude-code own >/dev/null && [[ -d $own/projects/-work && ! -e $own.new && ! -e $own.off ]]'
 rm -rf "$own"; print '{"env": {"ANTHROPIC_API_KEY": "x"}}' > "$shared/settings.json"
 check 'settings with an env block are not copied' 'grep -q "was not copied: it has an env block" <<<"$(code --claude-code synced)" && [[ ! -e $own/settings.json ]]'
+mkdir -p "$tmp/bare/Library/Application Support"   # a home whose ~/.claude has nothing to link
+check 'synced with nothing to link says list shows own' 'grep -qx "  Claude Code: its own settings and sessions, in $tmp/bare/Library/Application Support/Claude-Bare/.claude; nothing to link from ~/.claude, so list shows it as own until there is. Run add Bare --claude-code synced again then." <<<"$(HOME=$tmp/bare zsh "$cli" _claude-code Bare --claude-code synced)"'
 zsh -c 'sleep 30; :' _ "--user-data-dir=$data" & running=$!
 started $running "--user-data-dir=$data"
 check 'the mode does not change while it runs' 'code --claude-code shared >/dev/null 2>&1; [[ $? -eq 1 && -d $own ]] && grep -q "^Quit Claude Code first" <<<"$(code --claude-code shared 2>&1)"'

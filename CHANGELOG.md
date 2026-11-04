@@ -6,6 +6,11 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `add --claude-code synced` with nothing to link from `~/.claude` now says that `list` shows the
+  profile as `own` until there is, and to run it again then.
+
 ## [0.1.7] - 2026-11-04
 
 ### Changed
