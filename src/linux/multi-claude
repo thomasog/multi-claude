@@ -149,73 +149,6 @@ set_code() {
   echo "  Claude Code: its own settings and sessions, in $dir; from ~/.claude: ${list:-nothing to link yet, run add again later}."
 }
 
-# Claude in Chrome: each browser keeps one manifest naming the Claude it talks to, and every Claude
-# instance writes its own data folder into it. Keep it on the regular Claude.
-BROWSERS=(Chrome:google-chrome Edge:microsoft-edge Brave:BraveSoftware/Brave-Browser Chromium:chromium)
-PROFILE_HOST='/Claude-([^/]+)/ChromeNativeHost/'
-manifest_of() { echo "$CONFIG/${1#*:}/NativeMessagingHosts/com.anthropic.claude_browser_extension.json"; }
-host_path()   { sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -n1; }
-main_path()   { sed -E "s#$PROFILE_HOST#/Claude/ChromeNativeHost/#g"; }
-
-# The profile holding a host path, if any ("Claude-3p" and "Claude-Data" are Claude's own folders).
-held_by() { [[ $1 =~ $PROFILE_HOST && ${BASH_REMATCH[1],,} != 3p && ${BASH_REMATCH[1],,} != data ]] && echo "${BASH_REMATCH[1]}"; }
-
-repair_pairing() {
-  local browser manifest main tmp
-  for browser in "${BROWSERS[@]}"; do
-    manifest=$(manifest_of "$browser")
-    [[ -f $manifest ]] || continue
-    held_by "$(host_path "$manifest")" >/dev/null || continue
-    main=$(host_path "$manifest" | main_path)
-    [[ -e $main ]] || continue                 # the regular Claude has no host to point back to
-    tmp=$(mktemp "$manifest.XXXXXX") && main_path < "$manifest" > "$tmp" && mv "$tmp" "$manifest"
-  done
-}
-
-pairing() {
-  local browser manifest holder out=""
-  for browser in "${BROWSERS[@]}"; do
-    manifest=$(manifest_of "$browser")
-    [[ -f $manifest ]] || continue
-    if holder=$(held_by "$(host_path "$manifest")"); then
-      out+="${browser%%:*}: profile $holder, "
-    else
-      out+="${browser%%:*}: regular Claude, "
-    fi
-  done
-  if [[ -n $out ]]; then echo "${out%, }"; else echo "not set up"; fi
-}
-
-# Started by `open` in the background: keeps the pairing on the regular Claude while the profile
-# runs, then exits. One per profile: a lock folder holds the watcher's pid.
-GUARD_LOCK=""
-is_guard() {
-  local args
-  [[ -n $1 ]] || return 1
-  if args=$(ps -p "$1" -o args= 2>/dev/null); then [[ $args == *" _guard "* ]]; else kill -0 "$1" 2>/dev/null; fi
-}
-cmd_guard() {
-  local name=$1 waited=0 owner
-  GUARD_LOCK=${TMPDIR:-/tmp}/multi-claude-$(id -u)-$name.lock
-  if ! mkdir "$GUARD_LOCK" 2>/dev/null; then
-    sleep 1                                   # let a watcher that just took the lock write its pid
-    owner=$(cat "$GUARD_LOCK/pid" 2>/dev/null || true)
-    if is_guard "$owner"; then return 0; fi
-    # No pid yet: busy, unless the lock is a minute old (its watcher died before writing it).
-    if [[ -z $owner && -z $(find "$GUARD_LOCK" -maxdepth 0 -mmin +1 2>/dev/null) ]]; then return 0; fi
-    rm -rf "$GUARD_LOCK"; mkdir "$GUARD_LOCK" 2>/dev/null || return 0
-  fi
-  echo $$ > "$GUARD_LOCK/pid.tmp" && mv "$GUARD_LOCK/pid.tmp" "$GUARD_LOCK/pid"
-  trap 'rm -rf "$GUARD_LOCK"' EXIT
-  if command -v pgrep >/dev/null; then
-    while ! is_running "$name" && (( waited++ < 60 )); do sleep 1; done
-    while is_running "$name"; do repair_pairing; sleep 3; done
-  else
-    for _ in $(seq 40); do repair_pairing; sleep 3; done
-  fi
-  repair_pairing
-}
-
 # An existing profile's spelling, so `open work` finds profile "Work".
 canonical() {
   local name
@@ -332,9 +265,7 @@ cmd_open() {
   # Split Exec like a desktop launcher would, so quoted paths ("/opt/Claude Desktop/claude") survive.
   mapfile -t argv < <(xargs -n1 printf '%s\n' <<<"$(claude_launch "$entry")")
   command -v "${argv[0]}" >/dev/null || fail "Cannot run Claude: ${argv[0]}"
-  repair_pairing
   nohup "${argv[@]}" "--user-data-dir=$(data_dir "$1")" "--class=$(app_id "$1")" >/dev/null 2>&1 &
-  nohup "$HERE/multi-claude" _guard "$1" >/dev/null 2>&1 &
 }
 
 cmd_remove() {
@@ -342,7 +273,6 @@ cmd_remove() {
   [[ -f $(entry_of "$1") ]] || fail "No profile named '$1'."
   rm -f "$(entry_of "$1")"
   rm -rf "${PROFILES:?}/$1"
-  repair_pairing
   echo "Removed Claude $1. Its sign-in data is kept in $(data_dir "$1") - delete that folder to sign out for good."
 }
 
@@ -357,7 +287,6 @@ cmd_doctor() {
     echo "Claude Desktop:   not found - https://claude.ai/download"
   fi
   if command -v python3 >/dev/null; then echo "  python3: ok"; else echo "  python3: missing"; fi
-  echo "Browser pairing:  $(pairing)"
   if [[ -n ${CLAUDE_CONFIG_DIR:-} ]]; then echo "CLAUDE_CONFIG_DIR: $CLAUDE_CONFIG_DIR in this terminal; open drops it: each profile uses its own folder or ~/.claude"; fi
   echo
   cmd_list
@@ -369,7 +298,6 @@ cmd_uninstall() {
   if [[ -L $link && $(readlink "$link") == "$DATA/multi-claude/"* ]]; then rm -f "$link"; fi
   rm -f "$ENTRIES"/multi-claude-*.desktop
   rm -rf "${DATA:?}/multi-claude"
-  repair_pairing
   echo "multi-claude removed. Sign-in data is kept in $CONFIG/Claude-* - delete those folders to sign out for good."
 }
 
@@ -399,8 +327,6 @@ case ${cmd,,} in
   doctor)    cmd_doctor; if (( selftest )); then echo; echo "Self-test: Windows only (taskbar tagging)."; fi ;;
   uninstall) cmd_uninstall ;;
   version)   echo "multi-claude $VERSION" ;;
-  _guard)    check_name "$name"; cmd_guard "$name" ;;   # internal: started by `open`
-  _repair-pairing) repair_pairing ;;                   # internal: used by the tests
   help|"")   echo "$USAGE" ;;
   *)         fail "Unknown command '$cmd'."$'\n\n'"$USAGE" 64 ;;
 esac

@@ -14,10 +14,9 @@ you in the profile. With single sign-on, quit every other Claude first, includin
 profiles (on Windows, also from the tray).
 
 **Claude in Chrome talks to the wrong account.**
-On Windows and Linux, the browser pairs with the Claude that registered last. Opening a profile
-through its multi-claude launcher points it back to your regular Claude; `multi-claude doctor` shows
-the current pairing. If a profile was opened some other way, open it again from its launcher, or
-toggle Claude in Chrome off and on in your regular Claude.
+Claude in Chrome works with the account it was paired with. Toggle it off and on in the Claude whose
+account you want, to pair it there. On Windows, `multi-claude doctor` also shows which Claude the
+browser's entry points at; opening a profile from its launcher keeps it on your regular Claude.
 
 **A keyboard shortcut opens a profile instead of the regular Claude.**
 Only one app can own a global shortcut. In the profile's settings, turn its shortcut off or change it.

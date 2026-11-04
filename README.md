@@ -121,10 +121,10 @@ regular Claude in charge of them:
   first gets it. In each profile's settings, turn the shortcut off or give it another key.
 - **Open at login.** Leave this setting alone in profiles. On Windows the packaged (MSIX) app has a
   single startup entry, so turning it off in a profile can turn it off for your regular Claude too.
-- **Claude in Chrome** pairs with one Claude per computer, and every instance tries to claim it.
-  On Windows and Linux multi-claude keeps it on your regular Claude, in Chrome, Edge, Brave and
-  Chromium, while profiles run, and `multi-claude doctor` shows the pairing. On macOS Claude points
-  the browser at a helper inside `Claude.app`, not at a data folder, so there is nothing to repair.
+- **Claude in Chrome** works with the account it was paired with. The browser finds Claude through
+  one entry per computer that every Claude writes; on Windows multi-claude keeps it on your regular
+  Claude, in Chrome, Edge, Brave and Chromium, and `multi-claude doctor` shows it. On macOS and
+  Linux every Claude writes the same entry, so there is nothing to keep.
 - **Updates restart every Claude.** An idle Claude may install an app update on its own, and updating
   closes all Claude windows, including the one you are working in. Quit the profiles you are not
   using.

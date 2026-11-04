@@ -23,7 +23,7 @@ body:
         - label: Signing in to another account in the Test window worked (by e-mail, with the code typed in the profile)
         - label: "The Code tab works in Test, and `multi-claude list` shows Test as `own`"
         - label: Opening Claude Test again while it is open did not start a second Test window
-        - label: Claude in Chrome still talks to the regular Claude
+        - label: Claude in Chrome kept working with the account it was paired with
         - label: "`multi-claude remove Test` and `multi-claude uninstall` cleaned up"
   - type: textarea
     id: doctor

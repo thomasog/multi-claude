@@ -32,8 +32,9 @@ All notable changes are documented here. The format follows
 
 ### Removed
 
-- macOS: the Claude in Chrome watcher and the pairing line of `doctor`. Claude names a helper inside
-  `Claude.app` there, not a data folder, so they had nothing to repair.
+- macOS and Linux: the Claude in Chrome watcher and the pairing line of `doctor`. Every Claude names
+  the same helper inside Claude's own install there, not a data folder, so they had nothing to
+  repair. Claude in Chrome works with the account it was paired with.
 
 ### Fixed
 

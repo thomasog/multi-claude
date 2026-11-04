@@ -151,19 +151,22 @@ signs in on its own.
 
 Each profile has its own account, conversations, list of Claude Code sessions, scheduled tasks, MCP
 configuration and app settings, and, unless its Claude Code mode is `shared`, its own Claude Code
-folder. They share what exists once per user: global keyboard shortcuts, the browser's pairing with
+folder. They share what exists once per user: global keyboard shortcuts, the browser's entry for
 Claude in Chrome, on Windows the packaged app's startup entry, and `~/.claude` for profiles whose
 Claude Code is `shared`. The README lists how to keep your regular Claude in charge of these.
 
 Browsers find Claude through one native-messaging entry per user
 (`com.anthropic.claude_browser_extension`): a registry key on Windows, a JSON manifest in each
-browser's `NativeMessagingHosts` folder on macOS and Linux. Each Claude instance writes its own
-manifest path there; on Windows, the packaged app registers it inside its package's redirected
-AppData folder. On macOS the manifest names the helper inside `Claude.app`, not a data folder, so
-there is nothing to repair. On Windows and Linux, profile launchers run `multi-claude open`, which
-starts a small watcher for as long as the profile is open; whenever a profile has taken the entry, the
-watcher points it back to the regular Claude's own manifest, in Chrome, Edge, Brave and Chromium. It
-never touches the entry if the regular Claude has not paired.
+browser's `NativeMessagingHosts` folder on macOS and Linux. The entry only names the helper the
+browser starts. That helper reaches Claude through one socket or pipe per user, and Claude in Chrome
+works with the account it was paired with, not with whichever Claude wrote the entry (as read in
+Claude Desktop 4.16336). On macOS and Linux every Claude names the same helper inside Claude's own
+install, so there is nothing to keep. On Windows the packaged app registers it inside its package's
+redirected AppData folder, but a profile can register a copy in its own data folder, which would
+leave the browser pointing at nothing once that folder is deleted. So on Windows, profile launchers
+run `multi-claude open`, which starts a small watcher for as long as the profile is open; whenever a
+profile has taken the entry, the watcher points it back to the regular Claude's own manifest, in
+Chrome, Edge, Brave and Chromium. It never touches the entry if the regular Claude has not paired.
 
 ## Installation
 

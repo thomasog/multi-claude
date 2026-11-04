@@ -106,10 +106,9 @@ mkdir -p "$tmp/bin"; dump=$tmp/open.dump
 printf '#!/bin/sh\n{ env; for a in "$@"; do echo "ARG $a"; done; } > '\''%s.part'\'' && mv '\''%s.part'\'' '\''%s'\''\n' "$dump" "$dump" "$dump" > "$tmp/bin/fake-claude"
 chmod +x "$tmp/bin/fake-claude"
 sed -i "s#^Exec=.*#Exec=\"$tmp/bin/fake-claude\" %U#" "$XDG_DATA_HOME/applications/claude-desktop.desktop"
-opened() { rm -f "$dump"; TMPDIR=$tmp CLAUDE_CONFIG_DIR=/inherited CLAUDECODE=1 "$cli" open "$1" || return 1; for _ in $(seq 50); do [ -f "$dump" ] && return 0; sleep 0.1; done; return 1; }
+opened() { rm -f "$dump"; CLAUDE_CONFIG_DIR=/inherited CLAUDECODE=1 "$cli" open "$1" || return 1; for _ in $(seq 50); do [ -f "$dump" ] && return 0; sleep 0.1; done; return 1; }
 check 'open runs Code on the own folder'          'opened Code && grep -qx "CLAUDE_CONFIG_DIR=$own" "$dump" && grep -qx "ARG --user-data-dir=$XDG_CONFIG_HOME/Claude-Code" "$dump" && ! grep -q "^CLAUDECODE=" "$dump"'
 check 'open leaves a shared profile on ~/.claude' 'exit_is 0 add Code --claude-code shared && opened Code && ! grep -q "^CLAUDE_CONFIG_DIR=" "$dump"'
-for lock in "$tmp"/multi-claude-*.lock; do [ -f "$lock/pid" ] && kill "$(cat "$lock/pid")" 2>/dev/null; done
 check 'doctor names an inherited CLAUDE_CONFIG_DIR' 'grep -q "^CLAUDE_CONFIG_DIR: /x in this terminal; open drops it: each profile uses its own folder or ~/.claude$" <<<"$(CLAUDE_CONFIG_DIR=/x "$cli" doctor)"'
 check 'remove keeps the Claude Code folder'      'exit_is 0 add Code --claude-code own && exit_is 0 remove Code && exit_is 0 remove Fresh && [ -d "$own/projects" ]'
 sed -i "s#^Exec=.*#Exec=/usr/bin/claude-desktop %U#" "$XDG_DATA_HOME/applications/claude-desktop.desktop"
@@ -127,28 +126,6 @@ Icon=claude-desktop
 rm "$XDG_DATA_HOME/applications/claude-desktop.desktop"
 check 'Claude is found in XDG_DATA_DIRS'      'grep -qF "Claude Desktop:   $XDG_DATA_DIRS/applications/claude-desktop.desktop" <<<"$("$cli" doctor)"'
 check 'its themed icon is found and recolored' 'exit_is 0 add Sys && [ -f "$XDG_DATA_HOME/multi-claude/profiles/Sys/icon.png" ] && exit_is 0 remove Sys'
-
-# Claude in Chrome: a profile took the browser's pairing; it must go back to the regular Claude.
-main_host=$XDG_CONFIG_HOME/Claude/ChromeNativeHost/chrome-native-host
-profile_host=$XDG_CONFIG_HOME/Claude-Work/ChromeNativeHost/chrome-native-host
-chrome=$XDG_CONFIG_HOME/google-chrome/NativeMessagingHosts/com.anthropic.claude_browser_extension.json
-edge=$XDG_CONFIG_HOME/microsoft-edge/NativeMessagingHosts/com.anthropic.claude_browser_extension.json
-manifest() { printf '{\n  "name": "com.anthropic.claude_browser_extension",\n  "path": "%s",\n  "type": "stdio"\n}\n' "$1"; }
-mkdir -p "$(dirname "$main_host")" "$(dirname "$chrome")" "$(dirname "$edge")"
-touch "$main_host"
-manifest "$profile_host" > "$chrome"; manifest "$profile_host" > "$edge"
-check 'doctor shows a profile holding the pairing' 'grep -q "Chrome: profile Work, Edge: profile Work" <<<"$("$cli" doctor)"'
-check 'pairing goes back to the regular Claude'   'exit_is 0 _repair-pairing && grep -qF "\"path\": \"$main_host\"" "$chrome" && grep -qF "\"path\": \"$main_host\"" "$edge"'
-check 'doctor shows the regular Claude'           'grep -q "Chrome: regular Claude" <<<"$("$cli" doctor)"'
-rm "$main_host"; manifest "$profile_host" > "$chrome"
-check 'pairing is left alone if the regular Claude never paired' 'exit_is 0 _repair-pairing && grep -qF "\"path\": \"$profile_host\"" "$chrome"'
-odd_host=$tmp/Claude-Ops/home/Claude/ChromeNativeHost/chrome-native-host   # a "Claude-" folder above the regular one
-manifest "$odd_host" > "$chrome"
-check 'a Claude- folder elsewhere in the path is not a profile' 'grep -q "Chrome: regular Claude" <<<"$("$cli" doctor)" && exit_is 0 _repair-pairing && grep -qF "\"path\": \"$odd_host\"" "$chrome"'
-manifest "$XDG_CONFIG_HOME/Claude-3p/ChromeNativeHost/chrome-native-host" > "$chrome"
-check "Claude's own Claude-3p folder is not a profile" 'grep -q "Chrome: regular Claude" <<<"$("$cli" doctor)"'
-manifest "$XDG_CONFIG_HOME/Claude-Data/ChromeNativeHost/chrome-native-host" > "$chrome"
-check "Claude's own Claude-Data folder is not a profile" 'grep -q "Chrome: regular Claude" <<<"$("$cli" doctor)"'
 
 # ~/.local/bin/multi-claude: uninstall removes only its own link, never a real file.
 bin=$HOME/.local/bin/multi-claude
