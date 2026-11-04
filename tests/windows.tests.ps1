@@ -304,6 +304,15 @@ Test 'Claude Code: shared parks the folder, own brings it back' {
     Switch-ClaudeCode $f.Data 'own' 6>$null
     Assert ((Get-Content (Join-Path $f.Own "projects\-work\$($f.Id).jsonl")) -eq 'changed' -and -not (Test-Path "$($f.Own).off")) 'not brought back'
 }
+Test 'Claude Code: a leftover .claude.new goes once the parked folder is back' {
+    $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared
+    Switch-ClaudeCode $f.Data 'own' 6>$null
+    Switch-ClaudeCode $f.Data 'shared' 6>$null
+    New-Item -ItemType Directory "$($f.Own).new\projects" -Force | Out-Null; Set-Content "$($f.Own).new\projects\stale" 'x'   # an interrupted copy
+    Switch-ClaudeCode $f.Data 'own' 6>$null
+    Assert (Test-Path (Join-Path $f.Own "projects\-work\$($f.Id).jsonl")) 'the parked folder did not come back'
+    Assert (-not (Test-Path "$($f.Own).new") -and -not (Test-Path "$($f.Own).off")) 'a leftover was kept'
+}
 Test 'Claude Code: a copy that stops halfway leaves the profile shared, and add goes on from there' {
     $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared; $stopped = $false
     try { & { function Copy-New { throw 'disk full' }; Switch-ClaudeCode $f.Data 'own' 6>$null } } catch { $stopped = $true }

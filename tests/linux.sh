@@ -88,6 +88,8 @@ check 'own brings it back'                       'exit_is 0 add Code --claude-co
 mkdir "$own.off"
 check 'shared refuses a parked folder in the way' 'exit_is 1 add Code --claude-code shared && [ -d "$own" ] && grep -q "already exists: move it aside first" <<<"$("$cli" add Code --claude-code shared 2>&1)"'
 rmdir "$own.off"
+exit_is 0 add Code --claude-code shared; mkdir -p "$own.new/projects"; : > "$own.new/projects/stale"   # an interrupted copy
+check 'a leftover .claude.new goes once the parked folder is back' 'exit_is 0 add Code --claude-code own && [ -d "$own/projects/-work" ] && [ ! -e "$own.new" ] && [ ! -e "$own.off" ]'
 rm -rf "$own"; echo '{"env": {"ANTHROPIC_API_KEY": "x"}}' > "$shared/settings.json"; before=$(snapshot)
 mkdir -p "$own.new"; : > "$own.new/projects"   # a file in the way stops the copy
 check 'a copy that stops halfway leaves it shared' 'exit_is 1 add Code --claude-code own && [ "$(code_of Code)" = shared ] && grep -q "^Could not copy" <<<"$("$cli" add Code --claude-code own 2>&1)"'

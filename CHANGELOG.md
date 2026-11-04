@@ -11,6 +11,11 @@ All notable changes are documented here. The format follows
 - `add` with an existing profile's name in another case (`add work --color red` for profile `Work`)
   changes that profile under its own name, as `open` and `remove` already did, instead of failing.
 
+### Fixed
+
+- A `.claude.new` folder left by an interrupted Claude Code copy is deleted once the profile's
+  folder is in place, also when a parked `.claude.off` came back instead.
+
 ## [0.1.6] - 2026-11-04
 
 ### Added

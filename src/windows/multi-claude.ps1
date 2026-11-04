@@ -242,6 +242,7 @@ function Switch-ClaudeCode([string]$dataDir, [string]$mode) {
         New-Item -ItemType Directory -Path $work -Force | Out-Null
         $count = Copy-CodeSession $dataDir $work
         Rename-Item -LiteralPath $work -NewName '.claude'
+        Clear-Tree "$dir.new"   # only now: a copy an interrupted run left, when the parked folder came back
         if ($count) { Say "  Copied $count Claude Code session(s) of this profile from ~/.claude, which stays as it is." }
     }
     if ($mode -eq 'own') {

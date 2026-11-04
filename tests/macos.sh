@@ -177,6 +177,8 @@ check 'own brings it back'                     'code --claude-code own >/dev/nul
 mkdir "$own.off"
 check 'shared refuses a parked folder in the way' 'code --claude-code shared >/dev/null 2>&1; [[ $? -eq 1 && -d $own ]] && grep -q "already exists: move it aside first" <<<"$(code --claude-code shared 2>&1)"'
 rmdir "$own.off"
+code --claude-code shared >/dev/null; mkdir -p "$own.new/projects"; : > "$own.new/projects/stale"   # an interrupted copy
+check 'a leftover .claude.new goes once the parked folder is back' 'code --claude-code own >/dev/null && [[ -d $own/projects/-work && ! -e $own.new && ! -e $own.off ]]'
 rm -rf "$own"; print '{"env": {"ANTHROPIC_API_KEY": "x"}}' > "$shared/settings.json"
 check 'settings with an env block are not copied' 'grep -q "was not copied: it has an env block" <<<"$(code --claude-code synced)" && [[ ! -e $own/settings.json ]]'
 zsh -c 'sleep 30; :' _ "--user-data-dir=$data" & running=$!
