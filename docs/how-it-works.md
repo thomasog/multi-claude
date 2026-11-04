@@ -144,8 +144,9 @@ end up in one `projects` folder. So each profile picks one of three modes, with
 
 To use a profile's Claude Code in a terminal, set the variable yourself, e.g. on Linux
 `CLAUDE_CONFIG_DIR="$HOME/.config/Claude-Work/.claude" claude`, on macOS
-`CLAUDE_CONFIG_DIR="$HOME/Library/Application Support/Claude-Work/.claude" claude`. That terminal
-signs in on its own.
+`CLAUDE_CONFIG_DIR="$HOME/Library/Application Support/Claude-Work/.claude" claude`, on Windows
+`$env:CLAUDE_CONFIG_DIR = "$env:USERPROFILE\.multi-claude\data\Claude-Work\.claude"; claude`. That
+terminal signs in on its own.
 
 ## What profiles share
 
