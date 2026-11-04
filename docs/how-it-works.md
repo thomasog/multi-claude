@@ -37,10 +37,11 @@ except Claude's own (`Claude`, `Claude-*`, `Claude Nest`, `AnthropicClaude`) and
 Claude's package. Claude finds no `Claude-Data` there and keeps the profile's own folder, while
 everything the profile starts (MCP servers, Claude Code sessions, terminals) still finds its usual
 folders, such as the npm cache, through the junctions. A tool that creates a brand-new folder
-directly in LocalAppData while a profile runs creates it in the view. In the view's copy of Claude's package the profile keeps its own Claude in Chrome host; the
-watcher points the browsers back at the regular Claude, as for any profile, and puts Claude's "Open
-with" entry, which the profile writes with the alias it sees, back on the real one. `uninstall`
-removes the view's junctions, never what they point to.
+directly in LocalAppData while a profile runs creates it in the view. In the view's copy of Claude's
+package the profile keeps its own Claude in Chrome host; the watcher points the browsers back at the
+regular Claude, as for any profile, and puts Claude's "Open with" entry, which the profile writes
+with the alias it sees, back on the real one. `uninstall` removes the view's junctions, never what
+they point to.
 
 0.1.1 to 0.1.3 used a `\\?\C:\...` spelling of `LOCALAPPDATA` instead, which Claude treats as a share.
 npm can't work with that spelling, so MCP servers started through `npx` failed in profiles.
@@ -132,18 +133,19 @@ end up in one `projects` folder. So each profile picks one of three modes, with
   their file history, never overwriting and never changing `~/.claude`. Only those move: project
   memory (`projects/<dir>/memory`, which every account on `~/.claude` wrote to), plans and the rest
   stay in `~/.claude`. If the copy stops halfway the profile stays `shared`, and running `add` again
-  goes on from there. Nothing is copied back to
-  `~/.claude`: sessions from an own period come back with the folder. A change to or from `shared`
-  needs the profile closed; on Windows, a profile made before 0.1.3 must open once first, so its data
-  moves out of AppData.
+  goes on from there. Nothing is copied back to `~/.claude`: sessions from an own period come back
+  with the folder. A change to or from `shared` needs the profile closed; on Windows, a profile made
+  before 0.1.3 must open once first, so its data moves out of AppData.
 - **Don't set `CLAUDE_CONFIG_DIR` yourself** in a profile's "Environment variables" (Code tab, Edit
   local environment). Claude Code would follow it, but Claude Desktop's own writes would not, which
   splits the account record across two folders. A `CLAUDE_CONFIG_DIR` in your own environment is
   removed when a profile starts, as are all `CLAUDE*` and `ANTHROPIC*` variables; `doctor` mentions
   it.
 
-To use a profile's Claude Code in a terminal, set the variable yourself, e.g. on macOS and Linux
-`CLAUDE_CONFIG_DIR="$HOME/.config/Claude-Work/.claude" claude`. That terminal signs in on its own.
+To use a profile's Claude Code in a terminal, set the variable yourself, e.g. on Linux
+`CLAUDE_CONFIG_DIR="$HOME/.config/Claude-Work/.claude" claude`, on macOS
+`CLAUDE_CONFIG_DIR="$HOME/Library/Application Support/Claude-Work/.claude" claude`. That terminal
+signs in on its own.
 
 ## What profiles share
 

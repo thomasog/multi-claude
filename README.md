@@ -58,12 +58,12 @@ first.
 ## Use
 
 ```sh
-multi-claude add Work --color blue    # a new profile, in the Start menu, Applications or app launcher
+multi-claude add Work --color blue           # a new profile, in the Start menu, Applications or app launcher
 multi-claude add Work --claude-code synced   # its Claude Code also gets your skills and CLAUDE.md
-multi-claude list                     # your profiles
-multi-claude remove Work              # remove it; its sign-in data is kept
-multi-claude doctor                   # check this computer
-multi-claude doctor --selftest        # Windows only: also test taskbar tagging
+multi-claude list                            # your profiles
+multi-claude remove Work                     # remove it; its sign-in data is kept
+multi-claude doctor                          # check this computer
+multi-claude doctor --selftest               # Windows only: also test taskbar tagging
 ```
 
 Open a profile from its launcher. (`multi-claude open Work` does the same; on Windows it keeps the
