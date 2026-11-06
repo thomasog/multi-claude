@@ -7,7 +7,7 @@
 # icon, recolored. No artwork ships with this tool.
 set -euo pipefail
 
-VERSION=0.1.7
+VERSION=0.1.8
 HERE=${0:A:h}
 CLAUDE_APP=${MULTI_CLAUDE_CLAUDE_APP:-/Applications/Claude.app}   # the override is for the tests
 APPS=$HOME/Applications
