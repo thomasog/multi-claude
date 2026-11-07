@@ -310,6 +310,21 @@ Test 'Claude Code: the profile''s own files win when add runs again' {
     Assert ((Get-Content (Join-Path $f.Own 'settings.json')) -eq '{"theme": "mine"}') 'settings.json was overwritten'
     Assert ((Get-Content (Join-Path $f.Own "projects\-work\$($f.Id).jsonl")) -eq 'changed') 'transcript was overwritten'
 }
+
+Test 'Claude Code: copies a tool result whose staging path exceeds MAX_PATH' {
+    $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared
+    $results = "projects\-work\$($f.Id)\tool-results"
+    $stagedResults = Join-Path "$($f.Own).new" "projects\-work\$($f.Id).partial\tool-results"
+    # Only the staging path exceeds MAX_PATH, as .new and .partial add 12 characters.
+    $name = ('x' * (264 - $stagedResults.Length - 5)) + '.jpg'
+    $relative = Join-Path $results $name
+    Set-Content -LiteralPath (Join-Path $f.Shared $relative) 'tool result'
+
+    Switch-ClaudeCode $f.Data 'own' 6>$null
+
+    Assert ((Get-Content -LiteralPath (Join-Path $f.Own $relative)) -eq 'tool result') 'tool result not copied'
+    Assert (-not (Test-Path "$($f.Own).new")) 'the work folder is left'
+}
 Test 'Claude Code: own removes only the junctions, never what they point to' {
     $f = Initialize-CodeFixture; $script:SharedCode = $f.Shared
     Switch-ClaudeCode $f.Data 'synced' 6>$null

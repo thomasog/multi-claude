@@ -209,7 +209,13 @@ function Copy-New([string]$from, [string]$to) {
     $partial = "$to.partial"
     New-Item -ItemType Directory -Path (Split-Path $to) -Force | Out-Null
     if (Test-Path -LiteralPath $partial -PathType Container) { Clear-Tree $partial } elseif (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Force }
-    Copy-Item -LiteralPath $from -Destination $partial -Recurse -Force
+    if (Test-Path -LiteralPath $from -PathType Container) {
+        # Session attachments can exceed MAX_PATH once staged under the profile.
+        & (Join-Path $env:windir 'System32\robocopy.exe') $from $partial /E /COPY:DAT /DCOPY:T /SL /SJ /R:1 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+        if ($LASTEXITCODE -ge 8) { throw "robocopy could not copy $from (code $LASTEXITCODE)" }
+    } else {
+        Copy-Item -LiteralPath $from -Destination $partial -Force
+    }
     Rename-Item -LiteralPath $partial -NewName (Split-Path $to -Leaf)
     $true
 }
