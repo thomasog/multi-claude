@@ -6,6 +6,13 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows: moving a profile to `--claude-code own` or `synced` no longer fails on Windows PowerShell
+  5.1 when a session file's path passes 260 characters while it is copied (subagent transcripts and
+  tool results often do, unless Windows long paths are turned on). Session folders are now copied
+  with `robocopy`. Thanks @Yukk1No.
+
 ## [0.1.8] - 2026-11-06
 
 ### Added
