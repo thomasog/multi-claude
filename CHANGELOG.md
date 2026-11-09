@@ -6,6 +6,8 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-11-09
+
 ### Fixed
 
 - Windows: moving a profile to `--claude-code own` or `synced` no longer fails on Windows PowerShell
@@ -193,7 +195,8 @@ All notable changes are documented here. The format follows
 - Installers that download a versioned release and verify it against the SHA-256 written into them,
   with build provenance attestations, and offer to add a profile with a color picker.
 
-[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/thomasog/multi-claude/compare/v0.1.9...HEAD
+[0.1.9]: https://github.com/thomasog/multi-claude/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/thomasog/multi-claude/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/thomasog/multi-claude/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/thomasog/multi-claude/compare/v0.1.5...v0.1.6

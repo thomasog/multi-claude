@@ -8,7 +8,7 @@
 # the profile closes. If tagging ever fails, windows just show under the regular Claude button.
 
 $ErrorActionPreference = 'Stop'
-$Version = '0.1.8'
+$Version = '0.1.9'
 $Root    = Join-Path $env:USERPROFILE '.multi-claude'
 # The real LocalAppData folder. Profiles run with LOCALAPPDATA pointing at a view of it (see
 # Sync-LocalView), and so does every terminal they open, so the variable is never used here. Tests
