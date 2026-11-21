@@ -10,6 +10,8 @@ All notable changes are documented here. The format follows
 
 - Docs: how Claude's app updates behave with profiles open, on Windows and on macOS (tested on a Mac:
   launchers keep working after an update; an update waits until every Claude is quit).
+- Docs: skills and plugins added to a Claude account stay with that account; `--claude-code synced`
+  shares only the skills kept in `~/.claude/skills` by hand.
 
 ## [0.1.9] - 2026-11-09
 

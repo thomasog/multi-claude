@@ -89,6 +89,14 @@ profile's `.claude\settings.json` (macOS and Linux: `.claude/settings.json`) you
 added with `claude mcp add --scope user` and plugins belong to each Claude Code folder: add them
 again in the profile.
 
+**A `synced` profile still misses skills I see in my regular Claude.**
+Skills and plugins added to your Claude account (in Claude's settings, not as files you put in
+`~/.claude/skills`) belong to that account. Claude downloads its own copies of them into
+`~/.claude/skills/synced`, in a folder named after the account, and a profile signed in to another
+account gets that account's skills instead. `synced` only shares skills you keep in `~/.claude/skills`
+yourself. To use an account's skill or plugin in a profile, add it to the profile's account in
+Claude.
+
 **After changing a profile's Claude Code mode, a Code session is missing from its list.**
 Sessions stay in the folder they were made in. Moving to `own` or `synced` copies the profile's
 sessions from `~/.claude`; sessions made while it was `own` come back when you switch back from
