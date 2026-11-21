@@ -6,6 +6,11 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: how Claude's app updates behave with profiles open, on Windows and on macOS (tested on a Mac:
+  launchers keep working after an update; an update waits until every Claude is quit).
+
 ## [0.1.9] - 2026-11-09
 
 ### Fixed

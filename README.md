@@ -129,9 +129,10 @@ regular Claude in charge of them:
   one entry per computer that every Claude writes; on Windows multi-claude keeps it on your regular
   Claude, in Chrome, Edge, Brave and Chromium, and `multi-claude doctor` shows it. On macOS and
   Linux every Claude writes the same entry, so there is nothing to keep.
-- **Updates restart every Claude.** An idle Claude may install an app update on its own, and updating
-  closes all Claude windows, including the one you are working in. Quit the profiles you are not
-  using.
+- **App updates.** On Windows, an idle Claude may install an update on its own, and that closes every
+  Claude window, profiles included. On macOS, an update installs only once every Claude is quit,
+  profiles included. Quit the profiles you are not using, and reopen them from their launchers after
+  an update: Claude reopens only the regular app.
 - **Tray icons.** Every instance shows the same Claude icon in the system tray (or menu bar), with the
   same tooltip. The taskbar buttons and launchers are the ones that tell profiles apart.
 - **Notifications** from a profile show up as "Claude", and clicking one may bring up your regular

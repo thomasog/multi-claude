@@ -112,5 +112,11 @@ An idle Claude can install an app update, and updating closes every Claude windo
 you are not using. Account-switcher tools that restart Claude to swap its sign-in also close every
 Claude window, profiles included. Reopen the profiles from their launchers.
 
+**macOS: Claude doesn't update while profiles are open.**
+Every Claude, profiles included, is the same app, so an update waits until all of them are quit. A
+profile opened while an update is waiting also makes Claude drop it and download it again later. To
+update now, quit every Claude with Cmd+Q, reopen the regular Claude (it starts on the new version),
+then open the profiles from their launchers.
+
 **Sign a profile out for good.**
 Run `multi-claude remove <name>`, then delete the data folder it prints.
